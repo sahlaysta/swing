@@ -115,8 +115,8 @@ custom enhancements to Swing text components
 - add compound undo functionality
 - add right-click popup menu with (Cut, Copy, Paste...)
 - adjust behavior of having text selected and the right/left arrow key is pressed
-- improved text highlight support
-- improved hyperlink support
+- improved text highlight and right-click behavior
+- add hyperlink right-click support
  */
 final class JTextComponentEnhancer {
 
