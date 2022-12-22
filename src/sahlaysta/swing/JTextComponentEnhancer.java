@@ -139,19 +139,17 @@ public final class JTextComponentEnhancer {
             if (!(e.getSource() instanceof Container)) return;
             Component c = ((ContainerEvent)e).getChild();
             if (!(c instanceof JTextComponent)) return;
-
             JTextComponent jtc = (JTextComponent)c;
-
-            //if jtextcomponent is already enhanced
-            if (enhancedComps.contains(jtc)) return;
-            enhancedComps.add(jtc);
-
             enhanceJTextComponent(jtc);
         }, AWTEvent.CONTAINER_EVENT_MASK);
     }
 
     //enhance a jtextcomponent
     public static void enhanceJTextComponent(JTextComponent jtc) {
+        //if already enhanced
+        if (enhancedComps.contains(jtc)) return;
+        enhancedComps.add(jtc);
+
         //shortcut maps
         InputMap im = jtc.getInputMap();
         ActionMap am = jtc.getActionMap();
