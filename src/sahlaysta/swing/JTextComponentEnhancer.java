@@ -117,6 +117,7 @@ custom enhancements to Swing text components
 - adjust behavior of having text selected and the right/left arrow key is pressed
 - adjust right-click behavior on text selection
 - add hyperlink right-click support
+- disable beeps (for example, backspace in an empty text field)
  */
 public final class JTextComponentEnhancer {
 
