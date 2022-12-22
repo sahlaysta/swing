@@ -1,18 +1,18 @@
 /*
  * MIT License
- * 
+ *
  * Copyright (c) 2022 sahlaysta
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -110,14 +110,19 @@ import javax.swing.text.html.HTMLDocument;
 import javax.swing.undo.UndoManager;
 import javax.swing.undo.UndoableEdit;
 
-/*
-custom enhancements to Swing text components
-- add compound undo/redo functionality and shortcuts
-- add right-click popup menu with (Cut, Copy, Paste...)
-- adjust behavior of having text selected and the right/left arrow key is pressed
-- adjust right-click behavior on text selection
-- add hyperlink right-click support
-- disable beeps (for example, backspace in an empty text field)
+/**
+ * Custom enhancements to Swing text components.
+ *
+ * <ul>
+ * <li> Add compound undo/redo functionality and shortcuts
+ * <li> Add right-click popup menu with (Cut, Copy, Paste...)
+ * <li> Adjust behavior of having text selected and the right/left arrow key is pressed
+ * <li> Adjust right-click behavior on text selection
+ * <li> Add hyperlink right-click support
+ * <li> Disable beeps (for example, backspace in an empty text field)
+ * </ul>
+ *
+ * @author sahlaysta
  */
 public final class JTextComponentEnhancer {
 
@@ -131,7 +136,9 @@ public final class JTextComponentEnhancer {
     //store enhanced components by weak reference
     private static final Set<JTextComponent> enhancedComps = Collections.newSetFromMap(new WeakHashMap<>());
 
-    //automatically enhance all JTextComponents
+    /**
+     * Automatically enhances all Swing text components.
+     */
     public static void applyGlobalEnhancer() {
         Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
             if (e.getID() != ContainerEvent.COMPONENT_ADDED) return;
@@ -144,7 +151,11 @@ public final class JTextComponentEnhancer {
         }, AWTEvent.CONTAINER_EVENT_MASK);
     }
 
-    //enhance a jtextcomponent
+    /**
+     * Applies the enhancements to the text component.
+     *
+     * @param jtc the text component
+     */
     public static void enhanceJTextComponent(JTextComponent jtc) {
         //if already enhanced
         if (enhancedComps.contains(jtc)) return;
