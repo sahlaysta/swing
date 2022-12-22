@@ -112,13 +112,13 @@ import javax.swing.undo.UndoableEdit;
 
 /*
 custom enhancements to Swing text components
-- add compound undo functionality
+- add compound undo/redo functionality and shortcuts
 - add right-click popup menu with (Cut, Copy, Paste...)
 - adjust behavior of having text selected and the right/left arrow key is pressed
-- improved text highlight and right-click behavior
+- adjust right-click behavior on text selection
 - add hyperlink right-click support
  */
-final class JTextComponentEnhancer {
+public final class JTextComponentEnhancer {
 
     private JTextComponentEnhancer() { }
 
