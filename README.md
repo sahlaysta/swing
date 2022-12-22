@@ -1,4 +1,4 @@
-# swing
+# sahlaysta.swing
 Enhancements to Java Swing
 
 ## JTextComponentEnhancer
