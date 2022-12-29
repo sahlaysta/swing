@@ -575,7 +575,7 @@ public final class JTextComponentEnhancer {
                 ue = edits.get(i);
                 while (!ue.isSignificant()) {
                     if (i <= 0) return;
-                    ue = edits.get(i--);
+                    ue = edits.get(--i);
                 }
                 if (!areCompoundEdits(nextue, ue)) count++;
                 nextue = ue;
