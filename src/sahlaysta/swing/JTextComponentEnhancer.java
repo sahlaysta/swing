@@ -303,10 +303,13 @@ public final class JTextComponentEnhancer {
         //save the edits that are normally typed (and not, for example, pasted)
         private final Set<UndoableEdit> normalEdits = Collections.newSetFromMap(new WeakHashMap<>());
 
-        //save the key event for each edit. when edits have the same key event, they are compounded
+        //save a token for each edit. when edits have the same token (==), they are compounded
         //(this happens when you replace a text selection. it will cause two edits,
         // a remove edit and an add edit.)
-        private final WeakHashMap<UndoableEdit, KeyEvent> editEvents = new WeakHashMap<>();
+        private final WeakHashMap<UndoableEdit, Object> editTokens = new WeakHashMap<>();
+
+        //for doCompounded() to give edits the same token
+        private Object fnToken;
 
         /**
          * Initializes a new instance of the {@link JTextComponentEnhancer.CompoundUndoManager} class.
@@ -374,10 +377,29 @@ public final class JTextComponentEnhancer {
             }
         }
 
+        /**
+         * Invokes the function, registering any modifications to be compounded.
+         *
+         * @param runnable the function
+         */
+        public void doCompounded(Runnable runnable) {
+            fnToken = new Object();
+            try {
+                runnable.run();
+            } finally {
+                fnToken = null;
+            }
+        }
+
         //save the information of an edit
         //try to detect if it has been typed normally (and not, for example, pasted)
         //save the KeyEvent of each edit
         private void registerEdit(UndoableEdit ue) {
+            if (fnToken != null) {//doCompounded()
+                editTokens.put(ue, fnToken);
+                return;
+            }
+
             if (!(ue instanceof AbstractDocument.DefaultDocumentEvent)) return;
             AbstractDocument.DefaultDocumentEvent dde = (AbstractDocument.DefaultDocumentEvent)ue;
 
@@ -398,7 +420,7 @@ public final class JTextComponentEnhancer {
                             || DefaultEditorKit.deletePrevCharAction.equals(actionName)) {
                         normalEdits.add(ue);
                     }
-                    editEvents.put(ue, keyEvent);
+                    editTokens.put(ue, keyEvent);//use the KeyEvent as token
                 }
             }
         }
@@ -411,10 +433,10 @@ public final class JTextComponentEnhancer {
                 return false;
             }
 
-            //edits that have the same KeyEvent are compounded
+            //edits that have the same token are compounded
             //(this happens when you replace a text selection. it will cause two edits,
             // a remove edit and an add edit.)
-            if (editEvents.containsKey(edit) && editEvents.get(edit) == editEvents.get(precedingEdit)) return true;
+            if (editTokens.containsKey(edit) && editTokens.get(edit) == editTokens.get(precedingEdit)) return true;
 
             //for edits to be compounded, they must be normal edits
             if (!normalEdits.contains(edit) || !normalEdits.contains(precedingEdit)) return false;
@@ -594,7 +616,7 @@ public final class JTextComponentEnhancer {
         //create a JMenuItem with a display shortcut
         private JMenuItem getJMenuItem(String text, Runnable r, Object shortcutValue) {
             JMenuItem jmi = new JMenuItem(text);
-            jmi.addActionListener(e -> r.run());
+            jmi.addActionListener(e -> cum.doCompounded(r));
 
             //find the shortcut's KeyStroke with its shortcut value
             if (shortcutValue != null) {
