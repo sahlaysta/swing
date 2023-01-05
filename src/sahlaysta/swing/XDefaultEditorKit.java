@@ -39,15 +39,20 @@ import java.io.Reader;
 import java.io.Writer;
 import java.text.BreakIterator;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.WeakHashMap;
 
 /*
 modified DefaultEditorKit.java
 modifications:
-- made abstract class XTextAction to extend TextAction
-- made all the actions extend this class (replace all occurrences of "extends TextAction")
+- replace all occurrences of DefaultEditorKit to XDefaultEditorKit
+- made all the actions extend XTextAction
+  (replace all occurrences of "extends TextAction" to "extends XTextAction")
 - replace all occurrences of "UIManager.getLookAndFeel().provideErrorFeedback()" to use
   the "provideErrorFeedback()" method of XTextAction
+- replace all occurrences of "actionPerformed()" to use the "doActionPerformed()" method of XTextAction
+- modify NextVisualPositionAction to fully move the caret while text is selected
  */
 final class XDefaultEditorKit extends EditorKit {
 
@@ -58,12 +63,21 @@ final class XDefaultEditorKit extends EditorKit {
             super(name);
         }
 
+        abstract void doActionPerformed(ActionEvent e);
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            doActionPerformed(e);
+        }
+
         //replace beep
         void provideErrorFeedback(Component component) {
             //javax.swing.UIManager.getLookAndFeel().provideErrorFeedback(component);
         }
 
     }
+
+    //DefaultEditorKit.java
 
     /**
      * default constructor for DefaultEditorKit
@@ -856,7 +870,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if ((target != null) && (e != null)) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
@@ -912,7 +926,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if ((target != null) && (e != null)) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
@@ -960,7 +974,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
@@ -1002,7 +1016,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
@@ -1034,7 +1048,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             boolean beep = true;
             if ((target != null) && (target.isEditable())) {
@@ -1086,7 +1100,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             boolean beep = true;
             if ((target != null) && (target.isEditable())) {
@@ -1140,7 +1154,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             final JTextComponent target = getTextComponent(e);
             if ((target != null) && (e != null)) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
@@ -1213,7 +1227,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.setEditable(false);
@@ -1238,7 +1252,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.setEditable(true);
@@ -1274,7 +1288,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.cut();
@@ -1310,7 +1324,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.copy();
@@ -1347,7 +1361,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.paste();
@@ -1382,7 +1396,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             provideErrorFeedback(target);
         }
@@ -1406,7 +1420,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Rectangle visible = target.getVisibleRect();
@@ -1565,7 +1579,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int selectedIndex;
@@ -1615,7 +1629,7 @@ final class XDefaultEditorKit extends EditorKit {
             super("dump-model");
         }
 
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Document d = target.getDocument();
@@ -1646,13 +1660,26 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Caret caret = target.getCaret();
                 DefaultCaret bidiCaret = (caret instanceof DefaultCaret) ?
                         (DefaultCaret)caret : null;
                 int dot = caret.getDot();
+
+                //sahlaysta
+                if (direction == SwingConstants.EAST) {
+                    int selStart = target.getSelectionStart();
+                    int selEnd = target.getSelectionEnd();
+                    dot = selStart == selEnd ? selEnd : Math.max(selEnd - 1, 0);
+                } else if (direction == SwingConstants.WEST) {
+                    int selStart = target.getSelectionStart();
+                    int selEnd = target.getSelectionEnd();
+                    dot = selStart == selEnd ? selEnd : Math.min(selStart + 1, target.getDocument().getLength());
+                }
+                //sahlaysta
+
                 Position.Bias[] bias = new Position.Bias[1];
                 Point magicPosition = caret.getMagicCaretPosition();
 
@@ -1732,7 +1759,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -1772,7 +1799,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -1812,7 +1839,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -1871,7 +1898,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -1936,7 +1963,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -1976,7 +2003,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -2016,7 +2043,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -2053,7 +2080,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -2085,7 +2112,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 if (select) {
@@ -2113,7 +2140,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Document doc = target.getDocument();
@@ -2149,13 +2176,13 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
-            start.actionPerformed(e);
-            end.actionPerformed(e);
+        public void doActionPerformed(ActionEvent e) {
+            start.doActionPerformed(e);
+            end.doActionPerformed(e);
         }
 
-        private Action start;
-        private Action end;
+        private XTextAction start;
+        private XTextAction end;
     }
 
     /*
@@ -2178,13 +2205,13 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
-            start.actionPerformed(e);
-            end.actionPerformed(e);
+        public void doActionPerformed(ActionEvent e) {
+            start.doActionPerformed(e);
+            end.doActionPerformed(e);
         }
 
-        private Action start;
-        private Action end;
+        private XTextAction start;
+        private XTextAction end;
     }
 
     /*
@@ -2207,13 +2234,13 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
-            start.actionPerformed(e);
-            end.actionPerformed(e);
+        public void doActionPerformed(ActionEvent e) {
+            start.doActionPerformed(e);
+            end.doActionPerformed(e);
         }
 
-        private Action start;
-        private Action end;
+        private XTextAction start;
+        private XTextAction end;
     }
 
     /*
@@ -2234,7 +2261,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Document doc = target.getDocument();
@@ -2260,7 +2287,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.setCaretPosition(target.getCaretPosition());
@@ -2284,7 +2311,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void actionPerformed(ActionEvent e) {
+        public void doActionPerformed(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 ComponentOrientation last = target.getComponentOrientation();
