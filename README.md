@@ -3,12 +3,15 @@ Enhancements to Java Swing
 
 ## JTextComponentEnhancer
 
-- add compound undo/redo functionality and shortcuts
-- add right-click popup menu with (Cut, Copy, Paste...)
-- adjust behavior of having text selected and the right/left arrow key is pressed
-- adjust right-click behavior on text selection
-- add hyperlink right-click support
-- disable beeps (for example, backspace in an empty text field)
+- Add compound undo/redo functionality and shortcuts
+- Add 'paste as plain text' option and shortcut
+- Shortcuts are platform-specific
+- Add right-click popup menu (Cut, Copy, Paste...)
+    - Right-clicking on selected text will no longer unselect
+    - This menu can also be activated by the 'show context menu' key (for example this is Shift+F10 on Windows)
+- Adjust caret behavior while text is selected: when the left/right arrow key is pressed the caret will move to the beginning/end of the selection (this should be normal behavior in a text entry but Java Swing does not do it)
+- Add hyperlink right-click support (popup menu will include options to open/copy link)
+- Disable beeps (for example, backspace in an empty text field)
 
 Usage:
 
