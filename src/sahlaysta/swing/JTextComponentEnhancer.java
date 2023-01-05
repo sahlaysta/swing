@@ -194,8 +194,7 @@ public final class JTextComponentEnhancer {
         });
 
         //the right-click popup menu with Cut, Copy, Paste, etc.
-        jtc.setComponentPopupMenu(new JTCEPopupMenu(jtc, cum));
-
+        if (jtc.getComponentPopupMenu() == null) jtc.setComponentPopupMenu(new JTCEPopupMenu(jtc, cum));
     }
 
     //paste from clipboard without formatting
@@ -578,19 +577,19 @@ public final class JTextComponentEnhancer {
             //hyperlink actions (activate/copy link)
             if (hyperlink != null && jtc.isEnabled()) {
                 final int final_hyperlinkIndex = hyperlinkIndex;
-                final String final_hyperLink = hyperlink;
+                final String final_hyperlink = hyperlink;
 
                 //activate hyperlink
                 if (jtc instanceof JEditorPane) {
                     JEditorPane jep = (JEditorPane)jtc;
                     JMenuItem openHyperlink = new JMenuItem("Open link");
-                    openHyperlink.addActionListener(e -> activateHyperlink(jep, final_hyperLink, final_hyperlinkIndex));
+                    openHyperlink.addActionListener(e -> activateHyperlink(jep, final_hyperlink, final_hyperlinkIndex));
                     add(openHyperlink);
                 }
 
                 //copy hyperlink
                 JMenuItem copyHyperlink = new JMenuItem("Copy link");
-                copyHyperlink.addActionListener(e -> copyToClipboard(final_hyperLink));
+                copyHyperlink.addActionListener(e -> copyToClipboard(final_hyperlink));
                 add(copyHyperlink);
             }
 
