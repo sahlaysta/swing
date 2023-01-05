@@ -7,7 +7,6 @@ Enhancements to Java Swing
 - Add 'paste as plain text' option and shortcut
 - Shortcuts are platform-specific
 - Add right-click popup menu (Cut, Copy, Paste...)
-    - Right-clicking on selected text will no longer unselect
     - This menu can also be activated by the 'show context menu' key (for example this is Shift+F10 on Windows)
 - Adjust caret behavior while text is selected: when the left/right arrow key is pressed the caret will move to the beginning/end of the selection (this should be normal behavior in a text entry but Java Swing does not do it)
 - Add hyperlink right-click support (popup menu will include options to open/copy link)
