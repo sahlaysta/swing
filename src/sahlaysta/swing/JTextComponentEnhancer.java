@@ -188,7 +188,7 @@ public final class JTextComponentEnhancer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (jtc == getTextComponent(e) && jtc.isEnabled() && jtc.isEditable()) {
-                    pasteAsPlainText(jtc);
+                    cum.doCompounded(() -> pasteAsPlainText(jtc));
                 }
             }
         });
