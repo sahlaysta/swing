@@ -310,10 +310,17 @@ public final class JTextComponentEnhancer {
         //for doCompounded() to give edits the same token
         private Object fnToken;
 
+        //super.trimForLimit() would recursively call, making this necessary
+        private boolean trimForLimitRecursive;
+
         /**
          * Initializes a new instance of the {@link JTextComponentEnhancer.CompoundUndoManager} class.
          */
         public CompoundUndoManager() { }
+
+        {
+            setLimit(5);
+        }
 
         @Override
         public synchronized boolean addEdit(UndoableEdit anEdit) {
@@ -352,28 +359,23 @@ public final class JTextComponentEnhancer {
         }
 
         @Override
-        protected void trimForLimit() {//overridden for compound limit support
+        protected void trimForLimit() {
+            if (trimForLimitRecursive) return;
+
+            int originalLimit = getLimit();
             int limit = getLimit();
-            if (limit <= 0) {
-                super.trimForLimit();
-                return;
+            UndoableEdit prevEdit = null;
+            for (UndoableEdit ue: edits) {
+                if (areCompoundEdits(ue, prevEdit))
+                    limit++;
+                prevEdit = ue;
             }
-            if (edits.size() <= 1) return;
-            int count = 0;
-            UndoableEdit ue, nextue = null;
-            for (int i = edits.size() - 1; i >= 0; i--) {
-                ue = edits.get(i);
-                while (!ue.isSignificant()) {
-                    if (i <= 0) return;
-                    ue = edits.get(--i);
-                }
-                if (!areCompoundEdits(nextue, ue)) count++;
-                nextue = ue;
-                if (count > limit) {
-                    trimEdits(0, i);
-                    return;
-                }
-            }
+
+            trimForLimitRecursive = true;
+            setLimit(limit);
+            super.trimForLimit();
+            setLimit(originalLimit);
+            trimForLimitRecursive = false;
         }
 
         /**
