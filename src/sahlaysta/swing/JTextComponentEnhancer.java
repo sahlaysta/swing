@@ -317,11 +317,7 @@ public final class JTextComponentEnhancer {
          * Initializes a new instance of the {@link JTextComponentEnhancer.CompoundUndoManager} class.
          */
         public CompoundUndoManager() { }
-
-        {
-            setLimit(5);
-        }
-
+        
         @Override
         public synchronized boolean addEdit(UndoableEdit anEdit) {
             registerEdit(anEdit);
