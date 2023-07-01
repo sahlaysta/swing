@@ -1,6 +1,5 @@
 package sahlaysta.swing;
 
-
 import sun.awt.SunToolkit;
 
 import javax.swing.Action;
@@ -24,7 +23,6 @@ import javax.swing.text.Segment;
 import javax.swing.text.TextAction;
 import javax.swing.text.Utilities;
 import javax.swing.text.ViewFactory;
-import java.awt.Component;
 import java.awt.ComponentOrientation;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -39,40 +37,36 @@ import java.io.Reader;
 import java.io.Writer;
 import java.text.BreakIterator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.WeakHashMap;
 
 /*
 modified DefaultEditorKit.java
 modifications:
-- replace all occurrences of DefaultEditorKit to XDefaultEditorKit
 - made all the actions extend XTextAction
   (replace all occurrences of "extends TextAction" to "extends XTextAction")
-- replace all occurrences of "UIManager.getLookAndFeel().provideErrorFeedback()" to use
-  the "provideErrorFeedback()" method of XTextAction
-- replace all occurrences of "actionPerformed()" to use the "doActionPerformed()" method of XTextAction
+- replace all occurrences of "UIManager.getLookAndFeel().provideErrorFeedback()" to "beep()"
+- replace all occurrences of "actionPerformed()" to "doTextAction()"
 - modify NextVisualPositionAction to fully move the caret while text is selected
  */
-final class XDefaultEditorKit extends EditorKit {
+class XDefaultEditorKit extends EditorKit {
 
     //replace TextAction subclass
-    static abstract class XTextAction extends TextAction {
+    private static abstract class XTextAction extends TextAction {
 
         XTextAction(String name) {
             super(name);
         }
 
-        abstract void doActionPerformed(ActionEvent e);
+        abstract void doTextAction(ActionEvent e);
 
         @Override
-        public void actionPerformed(ActionEvent e) {
-            doActionPerformed(e);
+        public final void actionPerformed(ActionEvent e) {
+            doTextAction(e);
         }
 
-        //replace beep
-        void provideErrorFeedback(Component component) {
-            //javax.swing.UIManager.getLookAndFeel().provideErrorFeedback(component);
+        //replace beep action
+        void beep(JTextComponent jtc) {
+            JTextComponentEnhancer.beepForJTextComponent(jtc);
         }
 
     }
@@ -148,8 +142,8 @@ final class XDefaultEditorKit extends EditorKit {
      * @param doc The destination for the insertion.
      * @param pos The location in the document to place the
      *   content &gt;=0.
-     * @exception IOException on any I/O error
-     * @exception BadLocationException if pos represents an invalid
+     * @throws IOException on any I/O error
+     * @throws BadLocationException if pos represents an invalid
      *   location within the document.
      */
     public void read(InputStream in, Document doc, int pos)
@@ -167,8 +161,8 @@ final class XDefaultEditorKit extends EditorKit {
      * @param pos The location in the document to fetch the
      *   content &gt;=0.
      * @param len The amount to write out &gt;=0.
-     * @exception IOException on any I/O error
-     * @exception BadLocationException if pos represents an invalid
+     * @throws IOException on any I/O error
+     * @throws BadLocationException if pos represents an invalid
      *   location within the document.
      */
     public void write(OutputStream out, Document doc, int pos, int len)
@@ -199,8 +193,8 @@ final class XDefaultEditorKit extends EditorKit {
      * @param doc The destination for the insertion.
      * @param pos The location in the document to place the
      *   content &gt;=0.
-     * @exception IOException on any I/O error
-     * @exception BadLocationException if pos represents an invalid
+     * @throws IOException on any I/O error
+     * @throws BadLocationException if pos represents an invalid
      *   location within the document.
      */
     public void read(Reader in, Document doc, int pos)
@@ -309,8 +303,8 @@ final class XDefaultEditorKit extends EditorKit {
      * @param pos The location in the document to fetch the
      *   content from &gt;=0.
      * @param len The amount to write out &gt;=0.
-     * @exception IOException on any I/O error
-     * @exception BadLocationException if pos is not within 0 and
+     * @throws IOException on any I/O error
+     * @throws BadLocationException if pos is not within 0 and
      *   the length of the document.
      */
     public void write(Writer out, Document doc, int pos, int len)
@@ -324,9 +318,7 @@ final class XDefaultEditorKit extends EditorKit {
         int offs = pos;
         Object endOfLineProperty = doc.getProperty(EndOfLineStringProperty);
         if (endOfLineProperty == null) {
-            try {
-                endOfLineProperty = System.getProperty("line.separator");
-            } catch (SecurityException se) { }
+            endOfLineProperty = System.lineSeparator();
         }
         String endOfLine;
         if (endOfLineProperty instanceof String) {
@@ -768,60 +760,60 @@ final class XDefaultEditorKit extends EditorKit {
     // --- Action implementations ---------------------------------
 
     private static final Action[] defaultActions = {
-            new XDefaultEditorKit.InsertContentAction(), new XDefaultEditorKit.DeletePrevCharAction(),
-            new XDefaultEditorKit.DeleteNextCharAction(), new XDefaultEditorKit.ReadOnlyAction(),
-            new XDefaultEditorKit.DeleteWordAction(deletePrevWordAction),
-            new XDefaultEditorKit.DeleteWordAction(deleteNextWordAction),
-            new XDefaultEditorKit.WritableAction(), new XDefaultEditorKit.CutAction(),
-            new XDefaultEditorKit.CopyAction(), new XDefaultEditorKit.PasteAction(),
-            new XDefaultEditorKit.VerticalPageAction(pageUpAction, -1, false),
-            new XDefaultEditorKit.VerticalPageAction(pageDownAction, 1, false),
-            new XDefaultEditorKit.VerticalPageAction(selectionPageUpAction, -1, true),
-            new XDefaultEditorKit.VerticalPageAction(selectionPageDownAction, 1, true),
-            new XDefaultEditorKit.PageAction(selectionPageLeftAction, true, true),
-            new XDefaultEditorKit.PageAction(selectionPageRightAction, false, true),
-            new XDefaultEditorKit.InsertBreakAction(), new XDefaultEditorKit.BeepAction(),
-            new XDefaultEditorKit.NextVisualPositionAction(forwardAction, false,
+            new InsertContentAction(), new DeletePrevCharAction(),
+            new DeleteNextCharAction(), new ReadOnlyAction(),
+            new DeleteWordAction(deletePrevWordAction),
+            new DeleteWordAction(deleteNextWordAction),
+            new WritableAction(), new CutAction(),
+            new CopyAction(), new PasteAction(),
+            new VerticalPageAction(pageUpAction, -1, false),
+            new VerticalPageAction(pageDownAction, 1, false),
+            new VerticalPageAction(selectionPageUpAction, -1, true),
+            new VerticalPageAction(selectionPageDownAction, 1, true),
+            new PageAction(selectionPageLeftAction, true, true),
+            new PageAction(selectionPageRightAction, false, true),
+            new InsertBreakAction(), new BeepAction(),
+            new NextVisualPositionAction(forwardAction, false,
                     SwingConstants.EAST),
-            new XDefaultEditorKit.NextVisualPositionAction(backwardAction, false,
+            new NextVisualPositionAction(backwardAction, false,
                     SwingConstants.WEST),
-            new XDefaultEditorKit.NextVisualPositionAction(selectionForwardAction, true,
+            new NextVisualPositionAction(selectionForwardAction, true,
                     SwingConstants.EAST),
-            new XDefaultEditorKit.NextVisualPositionAction(selectionBackwardAction, true,
+            new NextVisualPositionAction(selectionBackwardAction, true,
                     SwingConstants.WEST),
-            new XDefaultEditorKit.NextVisualPositionAction(upAction, false,
+            new NextVisualPositionAction(upAction, false,
                     SwingConstants.NORTH),
-            new XDefaultEditorKit.NextVisualPositionAction(downAction, false,
+            new NextVisualPositionAction(downAction, false,
                     SwingConstants.SOUTH),
-            new XDefaultEditorKit.NextVisualPositionAction(selectionUpAction, true,
+            new NextVisualPositionAction(selectionUpAction, true,
                     SwingConstants.NORTH),
-            new XDefaultEditorKit.NextVisualPositionAction(selectionDownAction, true,
+            new NextVisualPositionAction(selectionDownAction, true,
                     SwingConstants.SOUTH),
-            new XDefaultEditorKit.BeginWordAction(beginWordAction, false),
-            new XDefaultEditorKit.EndWordAction(endWordAction, false),
-            new XDefaultEditorKit.BeginWordAction(selectionBeginWordAction, true),
-            new XDefaultEditorKit.EndWordAction(selectionEndWordAction, true),
-            new XDefaultEditorKit.PreviousWordAction(previousWordAction, false),
-            new XDefaultEditorKit.NextWordAction(nextWordAction, false),
-            new XDefaultEditorKit.PreviousWordAction(selectionPreviousWordAction, true),
-            new XDefaultEditorKit.NextWordAction(selectionNextWordAction, true),
-            new XDefaultEditorKit.BeginLineAction(beginLineAction, false),
-            new XDefaultEditorKit.EndLineAction(endLineAction, false),
-            new XDefaultEditorKit.BeginLineAction(selectionBeginLineAction, true),
-            new XDefaultEditorKit.EndLineAction(selectionEndLineAction, true),
-            new XDefaultEditorKit.BeginParagraphAction(beginParagraphAction, false),
-            new XDefaultEditorKit.EndParagraphAction(endParagraphAction, false),
-            new XDefaultEditorKit.BeginParagraphAction(selectionBeginParagraphAction, true),
-            new XDefaultEditorKit.EndParagraphAction(selectionEndParagraphAction, true),
-            new XDefaultEditorKit.BeginAction(beginAction, false),
-            new XDefaultEditorKit.EndAction(endAction, false),
-            new XDefaultEditorKit.BeginAction(selectionBeginAction, true),
-            new XDefaultEditorKit.EndAction(selectionEndAction, true),
-            new XDefaultEditorKit.DefaultKeyTypedAction(), new XDefaultEditorKit.InsertTabAction(),
-            new XDefaultEditorKit.SelectWordAction(), new XDefaultEditorKit.SelectLineAction(),
-            new XDefaultEditorKit.SelectParagraphAction(), new XDefaultEditorKit.SelectAllAction(),
-            new XDefaultEditorKit.UnselectAction(), new XDefaultEditorKit.ToggleComponentOrientationAction(),
-            new XDefaultEditorKit.DumpModelAction()
+            new BeginWordAction(beginWordAction, false),
+            new EndWordAction(endWordAction, false),
+            new BeginWordAction(selectionBeginWordAction, true),
+            new EndWordAction(selectionEndWordAction, true),
+            new PreviousWordAction(previousWordAction, false),
+            new NextWordAction(nextWordAction, false),
+            new PreviousWordAction(selectionPreviousWordAction, true),
+            new NextWordAction(selectionNextWordAction, true),
+            new BeginLineAction(beginLineAction, false),
+            new EndLineAction(endLineAction, false),
+            new BeginLineAction(selectionBeginLineAction, true),
+            new EndLineAction(selectionEndLineAction, true),
+            new BeginParagraphAction(beginParagraphAction, false),
+            new EndParagraphAction(endParagraphAction, false),
+            new BeginParagraphAction(selectionBeginParagraphAction, true),
+            new EndParagraphAction(selectionEndParagraphAction, true),
+            new BeginAction(beginAction, false),
+            new EndAction(endAction, false),
+            new BeginAction(selectionBeginAction, true),
+            new EndAction(selectionEndAction, true),
+            new DefaultKeyTypedAction(), new InsertTabAction(),
+            new SelectWordAction(), new SelectLineAction(),
+            new SelectParagraphAction(), new SelectAllAction(),
+            new UnselectAction(), new ToggleComponentOrientationAction(),
+            new DumpModelAction()
     };
 
     /**
@@ -847,7 +839,7 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
@@ -856,6 +848,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see Keymap#setDefaultAction
      * @see Keymap#getDefaultAction
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class DefaultKeyTypedAction extends XTextAction {
 
         /**
@@ -870,7 +863,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if ((target != null) && (e != null)) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
@@ -905,13 +898,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#insertContentAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class InsertContentAction extends XTextAction {
 
         /**
@@ -926,18 +920,18 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if ((target != null) && (e != null)) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
-                    provideErrorFeedback(target);
+                    beep(target);
                     return;
                 }
                 String content = e.getActionCommand();
                 if (content != null) {
                     target.replaceSelection(content);
                 } else {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -953,13 +947,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#insertBreakAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class InsertBreakAction extends XTextAction {
 
         /**
@@ -974,11 +969,11 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
-                    provideErrorFeedback(target);
+                    beep(target);
                     return;
                 }
                 target.replaceSelection("\n");
@@ -995,13 +990,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#insertTabAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class InsertTabAction extends XTextAction {
 
         /**
@@ -1016,11 +1012,11 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
-                    provideErrorFeedback(target);
+                    beep(target);
                     return;
                 }
                 target.replaceSelection("\t");
@@ -1034,6 +1030,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#deletePrevCharAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class DeletePrevCharAction extends XTextAction {
 
         /**
@@ -1048,7 +1045,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             boolean beep = true;
             if ((target != null) && (target.isEditable())) {
@@ -1081,7 +1078,7 @@ final class XDefaultEditorKit extends EditorKit {
                 }
             }
             if (beep) {
-                provideErrorFeedback(target);
+                beep(target);
             }
         }
     }
@@ -1092,6 +1089,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#deleteNextCharAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class DeleteNextCharAction extends XTextAction {
 
         /* Create this object with the appropriate identifier. */
@@ -1100,7 +1098,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             boolean beep = true;
             if ((target != null) && (target.isEditable())) {
@@ -1133,7 +1131,7 @@ final class XDefaultEditorKit extends EditorKit {
                 }
             }
             if (beep) {
-                provideErrorFeedback(target);
+                beep(target);
             }
         }
     }
@@ -1143,6 +1141,7 @@ final class XDefaultEditorKit extends EditorKit {
      * Deletes the word that precedes/follows the beginning of the selection.
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class DeleteWordAction extends XTextAction {
         DeleteWordAction(String name) {
             super(name);
@@ -1154,11 +1153,11 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             final JTextComponent target = getTextComponent(e);
             if ((target != null) && (e != null)) {
                 if ((! target.isEditable()) || (! target.isEnabled())) {
-                    provideErrorFeedback(target);
+                    beep(target);
                     return;
                 }
                 boolean beep = true;
@@ -1203,7 +1202,7 @@ final class XDefaultEditorKit extends EditorKit {
                 } catch (BadLocationException ignore) {
                 }
                 if (beep) {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -1215,6 +1214,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#readOnlyAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class ReadOnlyAction extends XTextAction {
 
         /* Create this object with the appropriate identifier. */
@@ -1227,7 +1227,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.setEditable(false);
@@ -1240,6 +1240,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#writableAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class WritableAction extends XTextAction {
 
         /* Create this object with the appropriate identifier. */
@@ -1252,7 +1253,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.setEditable(true);
@@ -1269,13 +1270,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#cutAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class CutAction extends XTextAction {
 
         /** Create this object with the appropriate identifier. */
@@ -1288,7 +1290,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.cut();
@@ -1305,13 +1307,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#copyAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class CopyAction extends XTextAction {
 
         /** Create this object with the appropriate identifier. */
@@ -1324,7 +1327,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.copy();
@@ -1342,13 +1345,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#pasteAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class PasteAction extends XTextAction {
 
         /** Create this object with the appropriate identifier. */
@@ -1361,7 +1365,7 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.paste();
@@ -1377,13 +1381,14 @@ final class XDefaultEditorKit extends EditorKit {
      * future Swing releases. The current serialization support is
      * appropriate for short term storage or RMI between applications running
      * the same version of Swing.  As of 1.4, support for long term storage
-     * of all JavaBeans&trade;
+     * of all JavaBeans
      * has been added to the <code>java.beans</code> package.
      * Please see {@link java.beans.XMLEncoder}.
      *
      * @see DefaultEditorKit#beepAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Same-version serialization only
     public static class BeepAction extends XTextAction {
 
         /** Create this object with the appropriate identifier. */
@@ -1396,9 +1401,9 @@ final class XDefaultEditorKit extends EditorKit {
          *
          * @param e the action event
          */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
-            provideErrorFeedback(target);
+            beep(target);
         }
     }
 
@@ -1410,6 +1415,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#pageDownAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class VerticalPageAction extends XTextAction {
 
         /** Create this object with the appropriate identifier. */
@@ -1420,7 +1426,8 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        @SuppressWarnings("deprecation")
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Rectangle visible = target.getVisibleRect();
@@ -1486,6 +1493,15 @@ final class XDefaultEditorKit extends EditorKit {
                                     target.setCaretPosition(newIndex);
                                 }
                             }
+                        } else {
+                            // If the caret index is same as the visible offset
+                            // then correct newVis.y so that it won't cause
+                            // unnecessary scrolling upward/downward when
+                            // page-down/page-up is received after ctrl-END/ctrl-HOME
+                            if (direction == -1 && newVis.y <= initialY ||
+                                    direction == 1 && newVis.y >= initialY) {
+                                newVis.y = initialY;
+                            }
                         }
                     } catch (BadLocationException ble) { }
                 } else {
@@ -1533,6 +1549,7 @@ final class XDefaultEditorKit extends EditorKit {
          * Returns adjustsed {@code y} position that indicates the location to scroll to
          * after selecting <code>index</code>.
          */
+        @SuppressWarnings("deprecation")
         private int getAdjustedY(JTextComponent text, Rectangle visible, int index) {
             int result = visible.y;
 
@@ -1569,6 +1586,7 @@ final class XDefaultEditorKit extends EditorKit {
     /**
      * Pages one view to the left or right.
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class PageAction extends XTextAction {
 
         /** Create this object with the appropriate identifier. */
@@ -1579,7 +1597,8 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        @SuppressWarnings("deprecation")
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int selectedIndex;
@@ -1623,13 +1642,14 @@ final class XDefaultEditorKit extends EditorKit {
         private boolean left;
     }
 
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class DumpModelAction extends XTextAction {
 
         DumpModelAction() {
             super("dump-model");
         }
 
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Document d = target.getDocument();
@@ -1645,6 +1665,7 @@ final class XDefaultEditorKit extends EditorKit {
      * getNextVisualPositionFrom method. Constructor indicates direction
      * to use.
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class NextVisualPositionAction extends XTextAction {
 
         /**
@@ -1660,7 +1681,8 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        @SuppressWarnings("deprecation")
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Caret caret = target.getCaret();
@@ -1668,17 +1690,23 @@ final class XDefaultEditorKit extends EditorKit {
                         (DefaultCaret)caret : null;
                 int dot = caret.getDot();
 
+
+
                 //sahlaysta
-                if (direction == SwingConstants.EAST) {
-                    int selStart = target.getSelectionStart();
-                    int selEnd = target.getSelectionEnd();
-                    dot = selStart == selEnd ? selEnd : Math.max(selEnd - 1, 0);
-                } else if (direction == SwingConstants.WEST) {
-                    int selStart = target.getSelectionStart();
-                    int selEnd = target.getSelectionEnd();
-                    dot = selStart == selEnd ? selEnd : Math.min(selStart + 1, target.getDocument().getLength());
+                if (!select) {
+                    if (direction == SwingConstants.EAST) {
+                        int selStart = target.getSelectionStart();
+                        int selEnd = target.getSelectionEnd();
+                        dot = selStart == selEnd ? selEnd : Math.max(selEnd - 1, 0);
+                    } else if (direction == SwingConstants.WEST) {
+                        int selStart = target.getSelectionStart();
+                        int selEnd = target.getSelectionEnd();
+                        dot = selStart == selEnd ? selEnd : Math.min(selStart + 1, target.getDocument().getLength());
+                    }
                 }
                 //sahlaysta
+
+
 
                 Position.Bias[] bias = new Position.Bias[1];
                 Point magicPosition = caret.getMagicCaretPosition();
@@ -1745,6 +1773,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectBeginWordAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class BeginWordAction extends XTextAction {
 
         /**
@@ -1759,7 +1788,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -1771,7 +1800,7 @@ final class XDefaultEditorKit extends EditorKit {
                         target.setCaretPosition(begOffs);
                     }
                 } catch (BadLocationException bl) {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -1785,6 +1814,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectEndWordAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class EndWordAction extends XTextAction {
 
         /**
@@ -1799,7 +1829,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -1811,7 +1841,7 @@ final class XDefaultEditorKit extends EditorKit {
                         target.setCaretPosition(endOffs);
                     }
                 } catch (BadLocationException bl) {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -1825,6 +1855,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectPreviousWordAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class PreviousWordAction extends XTextAction {
 
         /**
@@ -1839,7 +1870,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -1870,7 +1901,7 @@ final class XDefaultEditorKit extends EditorKit {
                     }
                 }
                 else {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -1884,6 +1915,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectNextWordAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class NextWordAction extends XTextAction {
 
         /**
@@ -1898,7 +1930,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -1935,7 +1967,7 @@ final class XDefaultEditorKit extends EditorKit {
                     }
                 }
                 else {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -1949,6 +1981,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectBeginLineAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class BeginLineAction extends XTextAction {
 
         /**
@@ -1963,7 +1996,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -1975,7 +2008,7 @@ final class XDefaultEditorKit extends EditorKit {
                         target.setCaretPosition(begOffs);
                     }
                 } catch (BadLocationException bl) {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -1989,6 +2022,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectEndLineAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class EndLineAction extends XTextAction {
 
         /**
@@ -2003,7 +2037,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 try {
@@ -2015,7 +2049,7 @@ final class XDefaultEditorKit extends EditorKit {
                         target.setCaretPosition(endOffs);
                     }
                 } catch (BadLocationException bl) {
-                    provideErrorFeedback(target);
+                    beep(target);
                 }
             }
         }
@@ -2029,6 +2063,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectBeginParagraphAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class BeginParagraphAction extends XTextAction {
 
         /**
@@ -2043,7 +2078,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -2066,6 +2101,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#selectEndParagraphAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class EndParagraphAction extends XTextAction {
 
         /**
@@ -2080,7 +2116,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 int offs = target.getCaretPosition();
@@ -2103,6 +2139,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#beginAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class BeginAction extends XTextAction {
 
         /* Create this object with the appropriate identifier. */
@@ -2112,7 +2149,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 if (select) {
@@ -2131,6 +2168,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#endAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class EndAction extends XTextAction {
 
         /* Create this object with the appropriate identifier. */
@@ -2140,7 +2178,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Document doc = target.getDocument();
@@ -2161,28 +2199,26 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#endAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class SelectWordAction extends XTextAction {
 
         /**
          * Create this action with the appropriate identifier.
-         * @param nm  the name of the action, Action.NAME.
-         * @param select whether to extend the selection when
-         *  changing the caret position.
          */
         SelectWordAction() {
             super(selectWordAction);
-            start = new XDefaultEditorKit.BeginWordAction("pigdog", false);
-            end = new XDefaultEditorKit.EndWordAction("pigdog", true);
+            start = new BeginWordAction("pigdog", false);
+            end = new EndWordAction("pigdog", true);
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
-            start.doActionPerformed(e);
-            end.doActionPerformed(e);
+        public void doTextAction(ActionEvent e) {
+            start.actionPerformed(e);
+            end.actionPerformed(e);
         }
 
-        private XTextAction start;
-        private XTextAction end;
+        private Action start;
+        private Action end;
     }
 
     /*
@@ -2190,28 +2226,26 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#endAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class SelectLineAction extends XTextAction {
 
         /**
          * Create this action with the appropriate identifier.
-         * @param nm  the name of the action, Action.NAME.
-         * @param select whether to extend the selection when
-         *  changing the caret position.
          */
         SelectLineAction() {
             super(selectLineAction);
-            start = new XDefaultEditorKit.BeginLineAction("pigdog", false);
-            end = new XDefaultEditorKit.EndLineAction("pigdog", true);
+            start = new BeginLineAction("pigdog", false);
+            end = new EndLineAction("pigdog", true);
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
-            start.doActionPerformed(e);
-            end.doActionPerformed(e);
+        public void doTextAction(ActionEvent e) {
+            start.actionPerformed(e);
+            end.actionPerformed(e);
         }
 
-        private XTextAction start;
-        private XTextAction end;
+        private Action start;
+        private Action end;
     }
 
     /*
@@ -2219,28 +2253,26 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#endAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class SelectParagraphAction extends XTextAction {
 
         /**
          * Create this action with the appropriate identifier.
-         * @param nm  the name of the action, Action.NAME.
-         * @param select whether to extend the selection when
-         *  changing the caret position.
          */
         SelectParagraphAction() {
             super(selectParagraphAction);
-            start = new XDefaultEditorKit.BeginParagraphAction("pigdog", false);
-            end = new XDefaultEditorKit.EndParagraphAction("pigdog", true);
+            start = new BeginParagraphAction("pigdog", false);
+            end = new EndParagraphAction("pigdog", true);
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
-            start.doActionPerformed(e);
-            end.doActionPerformed(e);
+        public void doTextAction(ActionEvent e) {
+            start.actionPerformed(e);
+            end.actionPerformed(e);
         }
 
-        private XTextAction start;
-        private XTextAction end;
+        private Action start;
+        private Action end;
     }
 
     /*
@@ -2248,20 +2280,18 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#endAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class SelectAllAction extends XTextAction {
 
         /**
          * Create this action with the appropriate identifier.
-         * @param nm  the name of the action, Action.NAME.
-         * @param select whether to extend the selection when
-         *  changing the caret position.
          */
         SelectAllAction() {
             super(selectAllAction);
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 Document doc = target.getDocument();
@@ -2277,6 +2307,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#unselectAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class UnselectAction extends XTextAction {
 
         /**
@@ -2287,7 +2318,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 target.setCaretPosition(target.getCaretPosition());
@@ -2301,6 +2332,7 @@ final class XDefaultEditorKit extends EditorKit {
      * @see DefaultEditorKit#toggleComponentOrientationAction
      * @see DefaultEditorKit#getActions
      */
+    @SuppressWarnings("serial") // Superclass is not serializable across versions
     static class ToggleComponentOrientationAction extends XTextAction {
 
         /**
@@ -2311,7 +2343,7 @@ final class XDefaultEditorKit extends EditorKit {
         }
 
         /** The operation to perform when this action is triggered. */
-        public void doActionPerformed(ActionEvent e) {
+        public void doTextAction(ActionEvent e) {
             JTextComponent target = getTextComponent(e);
             if (target != null) {
                 ComponentOrientation last = target.getComponentOrientation();
@@ -2325,6 +2357,8 @@ final class XDefaultEditorKit extends EditorKit {
             }
         }
     }
+
+    //Utilities: SegmentCache
 
     static int getNextWordInParagraph(JTextComponent c, Element line, int offs, boolean first)
             throws BadLocationException {
@@ -2517,6 +2551,5 @@ final class XDefaultEditorKit extends EditorKit {
         private static class CachedSegment extends Segment {
         }
     }
-
 
 }

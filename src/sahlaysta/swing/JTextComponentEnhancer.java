@@ -1,27 +1,3 @@
-/*
- * MIT License
- *
- * Copyright (c) 2023 sahlaysta
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 package sahlaysta.swing;
 
 import javax.swing.Action;
@@ -32,16 +8,18 @@ import javax.swing.JEditorPane;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.HyperlinkEvent;
+import javax.swing.event.UndoableEditEvent;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.Document;
-import javax.swing.text.Element;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Keymap;
+import javax.swing.text.StyledDocument;
 import javax.swing.text.StyledEditorKit;
 import javax.swing.text.TextAction;
 import javax.swing.text.html.HTML;
@@ -50,15 +28,15 @@ import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoManager;
 import javax.swing.undo.UndoableEdit;
-import java.applet.Applet;
 import java.awt.AWTEvent;
+import java.awt.AWTKeyStroke;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.EventQueue;
+import java.awt.FontMetrics;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.Window;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -69,13 +47,20 @@ import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Custom enhancements to Swing text components.
@@ -83,7 +68,6 @@ import java.util.WeakHashMap;
  * <ul>
  * <li> Add compound undo/redo functionality and shortcuts
  * <li> Add 'paste as plain text' option and shortcut
- * <li> Shortcuts are platform-specific
  * <li> Add right-click popup menu (Cut, Copy, Paste...)
  * <ul>
  *     <li> This menu can also be activated by the 'show context menu' key
@@ -92,124 +76,524 @@ import java.util.WeakHashMap;
  * <li> Adjust caret behavior while text is selected: when the left/right arrow key is pressed the caret
  *      will move to the beginning/end of the selection (this should be normal behavior in a text entry
  *      but Java Swing does not do it)
- * <li> Add hyperlink right-click support (popup menu will include options to open/copy link)
- * <li> Disable beeps (for example, backspace in an empty text field)
+ * <li> Add hyperlink right-click support (popup menu will include options to activate/copy)
+ * <li> Disable all beeps (for example, backspace in an empty text field)
  * </ul>
- *
- * @author sahlaysta
  */
-public final class JTextComponentEnhancer {
+public class JTextComponentEnhancer {
 
     private JTextComponentEnhancer() { }
 
-    //store enhanced components by weak reference
-    private static final Set<JTextComponent> enhancedComps = Collections.newSetFromMap(new WeakHashMap<>());
-
-    //keys for InputMap data
-    private static final String UNDO_KEY = "sahlaysta.undo";
-    private static final String REDO_KEY = "sahlaysta.redo";
-    private static final String PASTE_PLAIN_KEY = "sahlaysta.pastePlain";
-
-    //the platform-specific shortcuts
-    private static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
-    private static final boolean IS_MAC = System.getProperty("os.name").startsWith("Mac");
-    private static final KeyStroke[]
-            UNDO_KS = getPlatformKeystrokes("ctrl Z, alt BACK_SPACE | meta Z | ctrl Z"),
-            REDO_KS = getPlatformKeystrokes("ctrl Y, ctrl shift Z | meta shift Z, meta Y | ctrl shift Z, ctrl Y"),
-            PASTE_PLAIN_KS = getPlatformKeystrokes("ctrl shift V | meta shift V | ctrl shift V");
-    private static KeyStroke[] getPlatformKeystrokes(String str) {
-        int index = IS_WINDOWS ? 0 : IS_MAC ? 1 : 2;
-        return Arrays.stream(str.split("\\|")[index].split(","))
-                .map(String::trim)
-                .map(KeyStroke::getKeyStroke)
-                .toArray(KeyStroke[]::new);
-    }
-
-    /**
-     * Automatically enhances all Swing text components.
-     */
-    public static void applyGlobalEnhancer() {
-        Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
-            if (e.getID() != ContainerEvent.COMPONENT_ADDED) return;
-            if (!(e instanceof ContainerEvent)) return;
-            if (!(e.getSource() instanceof Container)) return;
-            Component c = ((ContainerEvent)e).getChild();
-            if (!(c instanceof JTextComponent)) return;
-            JTextComponent jtc = (JTextComponent)c;
-            enhanceJTextComponent(jtc);
-        }, AWTEvent.CONTAINER_EVENT_MASK);
-    }
-
-    /**
-     * Enhances the text component.
-     *
-     * @param jtc the text component
-     */
+    /** Provides the enhancements to the text component. */
     public static void enhanceJTextComponent(JTextComponent jtc) {
         Objects.requireNonNull(jtc);
-
-        //if already enhanced
-        if (enhancedComps.contains(jtc)) return;
-        enhancedComps.add(jtc);
-
-        //the XDefaultEditorKit disables beeps and reconfigures the caret behavior
-        //to fully move while text is selected
-        replaceXDefaultEditorKitActions(jtc);
-
-        //the CompoundUndoManager groups consecutive undoable edits
-        CompoundUndoManager cum = new CompoundUndoManager();
-        jtc.getDocument().addUndoableEditListener(cum);
-
-        //actions for Undo, Redo, Paste as plain text
-        InputMap im = jtc.getInputMap();
-        ActionMap am = jtc.getActionMap();
-        for (KeyStroke ks: UNDO_KS) if (im.get(ks) == null) im.put(ks, UNDO_KEY);
-        for (KeyStroke ks: REDO_KS) if (im.get(ks) == null) im.put(ks, REDO_KEY);
-        for (KeyStroke ks: PASTE_PLAIN_KS) if (im.get(ks) == null) im.put(ks, PASTE_PLAIN_KEY);
-        am.put(UNDO_KEY, new TextAction(UNDO_KEY) {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (jtc == getTextComponent(e) && jtc.isEnabled() && jtc.isEditable()) {
-                    if (cum.canUndo())
-                        cum.undo();
-                }
-            }
-        });
-        am.put(REDO_KEY, new TextAction(REDO_KEY) {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (jtc == getTextComponent(e) && jtc.isEnabled() && jtc.isEditable()) {
-                    if (cum.canRedo())
-                        cum.redo();
-                }
-            }
-        });
-        am.put(PASTE_PLAIN_KEY, new TextAction(PASTE_PLAIN_KEY) {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (jtc == getTextComponent(e) && jtc.isEnabled() && jtc.isEditable()) {
-                    cum.doCompounded(() -> pasteAsPlainText(jtc));
-                }
-            }
-        });
-
-        //the right-click popup menu with Cut, Copy, Paste, etc.
-        if (jtc.getComponentPopupMenu() == null) jtc.setComponentPopupMenu(new JTCEPopupMenu(jtc, cum));
+        enhanceJTextComponent(jtc, true, true, true, () -> { }, true);
     }
 
-    //paste from clipboard without formatting
-    private static void pasteAsPlainText(JTextComponent jtc) {
-        if (isPlainTextContentType(jtc)) {
-            jtc.paste();
-        } else {
+    /**
+     * Provides the enhancements to the text component.
+     *
+     * @param addCompoundUndoManager         if true, will provide the compound undo manager unless already provided
+     *
+     * @param addActions                     if true, will add the undo, redo, and paste as plain text inputs/actions
+     *                                       (will not replace any already existing inputs)
+     *
+     * @param replaceDefaultEditorKitActions if true, will replace the DefaultEditorKit actions of the component
+     *                                       (beep function + move caret fully with selected text)
+     *
+     * @param beepFunction                   will replace the text component beep action
+     *                                       (replaceDefaultEditorKitActions should be true)
+     *
+     * @param setComponentPopupMenu          if true, will provide the popup menu unless the component has a popup menu
+     */
+    public static void enhanceJTextComponent(
+            JTextComponent jtc,
+            boolean addCompoundUndoManager,
+            boolean addActions,
+            boolean replaceDefaultEditorKitActions,
+            Runnable beepFunction,
+            boolean setComponentPopupMenu) {
+        Objects.requireNonNull(jtc);
+        Objects.requireNonNull(beepFunction);
+
+        getOrAddCompoundUndoManager(jtc, addCompoundUndoManager);
+
+        if (addActions)
+            addEnhancementActions(jtc);
+
+        if (replaceDefaultEditorKitActions)
+            replaceXDefaultEditorKitActions(jtc);
+
+        setBeepFunction(jtc, beepFunction);
+
+        if (setComponentPopupMenu && jtc.getComponentPopupMenu() == null)
+            jtc.setComponentPopupMenu(new JTCEPopupMenu(jtc));
+    }
+
+    private static boolean appliedGlobalEnhancer = false;
+    private static final Set<JTextComponent> enhancedComponents
+            = Collections.newSetFromMap(new WeakIdentityHashMap<>());
+
+    /** Automatically enhances all text components. */
+    public static void applyGlobalEnhancer() {
+        if (appliedGlobalEnhancer) return;
+        appliedGlobalEnhancer = true;
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
+                if (e.getID() != ContainerEvent.COMPONENT_ADDED) return;
+                if (!(e instanceof ContainerEvent)) return;
+                if (!(e.getSource() instanceof Container)) return;
+                Component c = ((ContainerEvent)e).getChild();
+                if (!(c instanceof JTextComponent)) return;
+                JTextComponent jtc = (JTextComponent)c;
+                if (!enhancedComponents.contains(jtc)) {
+                    enhancedComponents.add(jtc);
+                    SwingUtilities.invokeLater(() -> enhanceJTextComponent(jtc));
+                }
+            }, AWTEvent.CONTAINER_EVENT_MASK);
+            return null;
+        });
+    }
+
+    /** The name and binding for the undo action. */
+    public static final String undo = "sahlaysta.swing.undo";
+
+    /** The name and binding for the redo action. */
+    public static final String redo = "sahlaysta.swing.redo";
+
+    /** The name and binding for the the paste as plain text action. */
+    public static final String pasteAsPlainText = "sahlaysta.swing.pasteasplaintext";
+
+    public static class UndoAction extends TextAction {
+
+        public UndoAction() {
+            super(undo);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            JTextComponent jtc = this.getTextComponent(e);
+            if (jtc != null && jtc.isEnabled() && jtc.isEditable())
+                undoForJTextComponent(jtc);
+        }
+
+    }
+
+    public static class RedoAction extends TextAction {
+
+        public RedoAction() {
+            super(redo);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            JTextComponent jtc = this.getTextComponent(e);
+            if (jtc != null && jtc.isEnabled() && jtc.isEditable())
+                redoForJTextComponent(jtc);
+        }
+
+    }
+
+    public static class PasteAsPlainTextAction extends TextAction {
+
+        public PasteAsPlainTextAction() {
+            super(pasteAsPlainText);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            JTextComponent jtc = this.getTextComponent(e);
+            if (jtc != null && jtc.isEnabled() && jtc.isEditable())
+                pasteAsPlainTextForJTextComponent(jtc);
+        }
+
+    }
+
+    /**
+     * Undo manager that groups adjacent undo edits.
+     *
+     * <ul>
+     * <li> Edits that are adjacent and made with the defaultKeyTypedAction action are compounded.
+     * <li> Edits that are adjacent and made with the deletePrevCharAction action (backspace) are compounded.
+     * <li> Edits that occur in the same AWTEvent event instance are always compounded.
+     * </ul>
+     *
+     */
+    public static class CompoundUndoManager extends UndoManager {
+
+        //class for grouped edits to be treated as one edit
+        private static class CUMEdit implements UndoableEdit {
+
+            final ArrayDeque<UndoableEdit> edits = new ArrayDeque<>();
+
+            enum UndoState { STARTED, UNDOED, REDOED }
+            UndoState undoState = UndoState.STARTED;
+
+            CUMEdit(UndoableEdit initialEdit) {
+                addCompoundEdit(initialEdit);
+            }
+
+            boolean canAddCompoundEdits() {
+                return undoState == UndoState.STARTED;
+            }
+
+            void addCompoundEdit(UndoableEdit anEdit) {
+                edits.add(anEdit);
+            }
+
+            @Override
+            public boolean addEdit(UndoableEdit anEdit) {
+                return false;
+            }
+
+            @Override
+            public boolean canUndo() {
+                return undoState == UndoState.STARTED || undoState == UndoState.REDOED;
+            }
+
+            @Override
+            public boolean canRedo() {
+                return undoState == UndoState.UNDOED;
+            }
+
+            @Override
+            public void undo() throws CannotUndoException {
+                if (!canUndo()) throw new CannotUndoException();
+                edits.descendingIterator().forEachRemaining(UndoableEdit::undo);
+                undoState = UndoState.UNDOED;
+            }
+
+            @Override
+            public void redo() throws CannotRedoException {
+                if (!canRedo()) throw new CannotRedoException();
+                edits.iterator().forEachRemaining(UndoableEdit::redo);
+                undoState = UndoState.REDOED;
+            }
+
+            @Override
+            public boolean isSignificant() {
+                return edits.stream().anyMatch(UndoableEdit::isSignificant);
+            }
+
+            @Override public void die() { }
+            @Override public boolean replaceEdit(UndoableEdit anEdit) { return false; }
+            @Override public String getPresentationName() { return ""; }
+            @Override public String getUndoPresentationName() { return ""; }
+            @Override public String getRedoPresentationName() { return ""; }
+
+        }
+
+        public CompoundUndoManager(JTextComponent jtc) {
+            this.jtc = jtc;
+        }
+
+        @Deprecated
+        public CompoundUndoManager() {
+            this(null);
+        }
+
+        final JTextComponent jtc;
+        private Object doCompoundedToken;
+
+        //remember information on each UndoableEdit instance
+        private static final Map<UndoableEdit, AWTEvent> awtEvents = new WeakIdentityHashMap<>();
+        private static final Map<UndoableEdit, Object> doCompoundedTokens = new WeakIdentityHashMap<>();
+        private static final Set<UndoableEdit> defaultTypedEdits =
+                Collections.newSetFromMap(new WeakIdentityHashMap<>());
+        private static final Set<UndoableEdit> deletePreviousEdits =
+                Collections.newSetFromMap(new WeakIdentityHashMap<>());
+
+        /** This method is most likely useless now. */
+        public synchronized void doCompounded(Runnable runnable) {
+            Object previousToken = this.doCompoundedToken;
+            this.doCompoundedToken = new Object();
             try {
-                Object o = Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
-                if (o instanceof String) jtc.replaceSelection((String)o);
-            } catch (UnsupportedFlavorException | IOException ignore) { }
+                runnable.run();
+            } finally {
+                this.doCompoundedToken = previousToken;
+            }
+        }
+
+        @Override
+        public void undoableEditHappened(UndoableEditEvent e) {
+            registerEditInfo(e.getEdit());
+            super.undoableEditHappened(e);
+        }
+
+        @Override
+        public synchronized boolean addEdit(UndoableEdit anEdit) {
+            UndoableEdit lastEdit = lastEdit();
+            if (lastEdit == editToBeUndone() && lastEdit instanceof CUMEdit) {
+                CUMEdit cumEdit = (CUMEdit) lastEdit;
+                UndoableEdit cumLastEdit = cumEdit.edits.peekLast();
+                if (cumEdit.canAddCompoundEdits() && areCompoundEdits(cumLastEdit, anEdit)) {
+                    cumEdit.addCompoundEdit(anEdit);
+                    return true;
+                }
+            }
+            return super.addEdit(new CUMEdit(anEdit));
+        }
+
+        private void registerEditInfo(UndoableEdit ue) {
+            if (doCompoundedToken != null) doCompoundedTokens.put(ue, doCompoundedToken);
+
+            if (jtc == null) return;
+
+            if (!(ue instanceof AbstractDocument.DefaultDocumentEvent)) return;
+            AbstractDocument.DefaultDocumentEvent dde = (AbstractDocument.DefaultDocumentEvent) ue;
+            if (dde.getDocument() != jtc.getDocument()) return;
+
+            AWTEvent awtEvent = EventQueue.getCurrentEvent();
+            if (awtEvent == null) return;
+            awtEvents.put(ue, awtEvent);
+
+            if (awtEvent instanceof KeyEvent && awtEvent.getSource() == jtc) {
+                KeyEventInfo kei = KeyEventInfo.getCurrentKeyEventInfo();
+                if (kei != null) {
+                    if (kei.nameEquals("default-typed"))
+                        defaultTypedEdits.add(ue);
+                    else if (kei.nameEquals("delete-previous"))
+                        deletePreviousEdits.add(ue);
+                }
+            }
+        }
+
+        private boolean areCompoundEdits(UndoableEdit ue1, UndoableEdit ue2) {
+            if (doCompoundedTokens.get(ue1) != null && doCompoundedTokens.get(ue1) == doCompoundedTokens.get(ue2)) {
+                return true;
+            }
+
+            if (awtEvents.get(ue1) != null && awtEvents.get(ue1) == awtEvents.get(ue2)) {
+                return true;
+            }
+
+            if (ue1 instanceof AbstractDocument.DefaultDocumentEvent
+                    && ue2 instanceof AbstractDocument.DefaultDocumentEvent) {
+                AbstractDocument.DefaultDocumentEvent dde1 = (AbstractDocument.DefaultDocumentEvent) ue1;
+                AbstractDocument.DefaultDocumentEvent dde2 = (AbstractDocument.DefaultDocumentEvent) ue2;
+                DocumentEvent.EventType dde1type = dde1.getType();
+                DocumentEvent.EventType dde2type = dde2.getType();
+                if (dde1type == dde2type) {
+                    if (defaultTypedEdits.contains(dde1) && defaultTypedEdits.contains(dde2)) {
+                        if ((dde1type == DocumentEvent.EventType.INSERT)
+                                && (dde1.getOffset() + dde1.getLength() == dde2.getOffset())) {
+                            return true;
+                        }
+                    } else if (deletePreviousEdits.contains(dde1) && deletePreviousEdits.contains(dde2)) {
+                        if ((dde1type == DocumentEvent.EventType.REMOVE)
+                                && (dde1.getOffset() - dde1.getLength() == dde2.getOffset())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+    }
+
+    private enum OS { WINDOWS, MAC, OTHER }
+    private static final OS os = getOS();
+    private static OS getOS() {
+        String osName = System.getProperty("os.name");
+        if (osName.startsWith("Windows")) {
+            return OS.WINDOWS;
+        } else if (osName.startsWith("Mac")) {
+            return OS.MAC;
+        } else {
+            return OS.OTHER;
         }
     }
 
-    //for text entries with plain text content type, 'paste as plain text' is disabled
+    /*
+    the platform-specific keystroke shortcuts
+
+    the reasoning behind these shortcuts:
+    Windows: "ctrl Z and alt backspace" for undo are common, for example Notepad.exe
+    Mac: in Java Swing's AquaLookAndFeel, AquaKeyBindings defines copy as "meta C" and paste as "meta V", which is why
+         here undo follows that pattern: "meta Z"
+     */
+    private static class PlatformKeyStrokes {
+        final KeyStroke[] undo, redo, pasteAsPlainText;
+        PlatformKeyStrokes(KeyStroke[] undo, KeyStroke[] redo, KeyStroke[] pasteAsPlainText) {
+            this.undo = undo;
+            this.redo = redo;
+            this.pasteAsPlainText = pasteAsPlainText;
+        }
+    }
+    private static final PlatformKeyStrokes platformKeyStrokes = getPlatformKeyStrokes();
+    private static PlatformKeyStrokes getPlatformKeyStrokes() {
+        KeyStroke[] undo, redo, pasteAsPlainText;
+        switch (os) {
+            case WINDOWS:
+                undo = getKeyStrokes("ctrl Z", "alt BACK_SPACE", "UNDO");
+                redo = getKeyStrokes("ctrl shift Z", "ctrl Y");
+                pasteAsPlainText = getKeyStrokes("ctrl shift V");
+                break;
+            case MAC:
+                undo = getKeyStrokes("meta Z", "UNDO");
+                redo = getKeyStrokes("meta shift Z", "meta Y");
+                pasteAsPlainText = getKeyStrokes("meta shift V");
+                break;
+            case OTHER:
+                undo = getKeyStrokes("ctrl Z", "UNDO");
+                redo = getKeyStrokes("ctrl shift Z", "ctrl Y");
+                pasteAsPlainText = getKeyStrokes("ctrl shift V");
+                break;
+            default: throw new AssertionError();
+        }
+        return new PlatformKeyStrokes(undo, redo, pasteAsPlainText);
+    }
+    private static KeyStroke[] getKeyStrokes(String... keyStrokes) {
+        return Arrays.stream(keyStrokes)
+                .map(KeyStroke::getKeyStroke)
+                .map(Objects::requireNonNull)
+                .toArray(KeyStroke[]::new);
+    }
+
+    private static CompoundUndoManager getOrAddCompoundUndoManager(JTextComponent jtc, boolean addCompoundUndoManager) {
+        Document doc = jtc.getDocument();
+        if (!(doc instanceof AbstractDocument)) return null;
+        AbstractDocument adoc = (AbstractDocument) doc;
+        CompoundUndoManager match = Arrays.stream(adoc.getUndoableEditListeners())
+                .filter(d -> d instanceof CompoundUndoManager && ((CompoundUndoManager)d).jtc == jtc)
+                .map(d -> (CompoundUndoManager)d)
+                .findFirst().orElse(null);
+        if (match != null) {
+            return match;
+        } else {
+            if (addCompoundUndoManager) {
+                CompoundUndoManager cum = new CompoundUndoManager(jtc);
+                adoc.addUndoableEditListener(cum);
+                return cum;
+            } else {
+                return null;
+            }
+        }
+    }
+
+    private static final UndoAction undoAction = new UndoAction();
+    private static final RedoAction redoAction = new RedoAction();
+    private static final PasteAsPlainTextAction pasteAsPlainTextAction = new PasteAsPlainTextAction();
+    private static void addEnhancementActions(JTextComponent jtc) {
+        InputMap im = jtc.getInputMap();
+        ActionMap am = jtc.getActionMap();
+        for (KeyStroke keyStroke: platformKeyStrokes.undo) {
+            if (im.get(keyStroke) == null)
+                im.put(keyStroke, undo);
+            am.put(undo, undoAction);
+        }
+        for (KeyStroke keyStroke: platformKeyStrokes.redo) {
+            if (im.get(keyStroke) == null)
+                im.put(keyStroke, redo);
+            am.put(redo, redoAction);
+        }
+        for (KeyStroke keyStroke: platformKeyStrokes.pasteAsPlainText) {
+            if (im.get(keyStroke) == null)
+                im.put(keyStroke, pasteAsPlainText);
+            am.put(pasteAsPlainText, pasteAsPlainTextAction);
+        }
+    }
+
+    private static class ReplacementAction {
+        final Action defaultAction, xAction;
+        ReplacementAction(Action oldAction, Action newAction) {
+            this.defaultAction = oldAction;
+            this.xAction = newAction;
+        }
+    }
+    private static final Map<String, ReplacementAction> replacementActionMap = createReplacementActionMap();
+    private static Map<String, ReplacementAction> createReplacementActionMap() {
+        Map<String, Action> defaultActionMap =
+                Arrays.stream(new DefaultEditorKit().getActions())
+                .collect(Collectors.toMap(a -> (String)a.getValue(Action.NAME), a -> a));
+        Map<String, Action> xActionMap =
+                Arrays.stream(new XDefaultEditorKit().getActions())
+                .collect(Collectors.toMap(a -> (String)a.getValue(Action.NAME), a -> a));
+        Set<String> actionNames = Stream.concat(
+                defaultActionMap.keySet().stream(), xActionMap.keySet().stream())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        HashMap<String, ReplacementAction> result = new HashMap<>();
+        for (String actionName: actionNames) {
+            Action defaultAction = defaultActionMap.get(actionName);
+            Action xAction = xActionMap.get(actionName);
+            if (defaultAction != null && xAction != null)
+                result.put(actionName, new ReplacementAction(defaultAction, xAction));
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    private static void replaceXDefaultEditorKitActions(JTextComponent jtc) {
+        replaceXDefaultEditorKitActionMap(jtc.getActionMap());
+        Keymap km = jtc.getKeymap();
+        if (km != null) {
+            Action kmDefaultAction = km.getDefaultAction();
+            Action kmReplacementAction = findReplacementAction(kmDefaultAction);
+            if (kmReplacementAction != null) km.setDefaultAction(kmReplacementAction);
+        }
+    }
+
+    private static void replaceXDefaultEditorKitActionMap(ActionMap actionMap) {
+        ActionMap current = actionMap;
+        while (current != null) {
+            Object[] keys = current.keys();
+            if (keys != null) {
+                for (Object key: keys) {
+                    Action action = current.get(key);
+                    Action replacementAction = findReplacementAction(action);
+                    if (replacementAction != null) current.put(key, replacementAction);
+                }
+            }
+            current = current.getParent();
+        }
+    }
+
+    private static Action findReplacementAction(Action action) {
+        if (action != null) {
+            Object actionNameObj = action.getValue(Action.NAME);
+            if (actionNameObj instanceof String) {
+                String actionName = (String) actionNameObj;
+                ReplacementAction replacementAction = replacementActionMap.get(actionName);
+                if (replacementAction != null && action.getClass() == replacementAction.defaultAction.getClass())
+                    return replacementAction.xAction;
+            }
+        }
+        return null;
+    }
+
+    private static final Map<JTextComponent, Runnable> componentBeepRunnables = new WeakIdentityHashMap<>();
+    private static void setBeepFunction(JTextComponent jtc, Runnable beepFunction) {
+        componentBeepRunnables.put(jtc, beepFunction);
+    }
+
+    static void beepForJTextComponent(JTextComponent jtc) {//called from XDefaultEditorKit
+        Runnable r = componentBeepRunnables.get(jtc);
+        if (r != null) r.run();
+    }
+
+    static void undoForJTextComponent(JTextComponent jtc) {
+        CompoundUndoManager cum = getOrAddCompoundUndoManager(jtc, false);
+        if (cum != null && cum.canUndo())
+            cum.undo();
+    }
+
+    static void redoForJTextComponent(JTextComponent jtc) {
+        CompoundUndoManager cum = getOrAddCompoundUndoManager(jtc, false);
+        if (cum != null && cum.canRedo())
+            cum.redo();
+    }
+
+    static void pasteAsPlainTextForJTextComponent(JTextComponent jtc) {
+        if (isPlainTextContentType(jtc)) {
+            jtc.paste();
+        } else {
+            String str = getClipboardText();
+            if (str != null) jtc.replaceSelection(str);
+        }
+    }
+
     private static boolean isPlainTextContentType(JTextComponent jtc) {
         if (jtc instanceof JEditorPane) {
             JEditorPane jep = (JEditorPane)jtc;
@@ -219,479 +603,246 @@ public final class JTextComponentEnhancer {
         }
     }
 
-    //replace all DefaultEditorKit actions with XDefaultEditorKit actions
-    private static void replaceXDefaultEditorKitActions(JTextComponent jtc) {
-        Action[] defaultActions = new DefaultEditorKit().getActions();
-        if (defaultActions == null) return;
-
-        Action[] xActions = new XDefaultEditorKit().getActions();
-        if (xActions == null) return;
-
-        //replace the ActionMap actions
-        ActionMap am = jtc.getActionMap();
-        while (am != null) {
-            Object[] keys = am.keys();
-            if (keys != null) {
-                e: for (Object key: keys) {
-                    Action action = am.get(key);
-                    if (action != null) {
-                        //find defaultAction with the same Class
-                        for (Action defaultAction: defaultActions) {
-                            if (defaultAction != null) {
-                                if (action.getClass() == defaultAction.getClass()) {
-                                    Object actionName = action.getValue(Action.NAME);
-                                    if (actionName != null) {
-                                        //find xAction with the same name
-                                        for (Action xAction: xActions) {
-                                            if (xAction != null) {
-                                                Object xActionName = xAction.getValue(Action.NAME);
-                                                if (actionName.equals(xActionName)) {
-                                                    //now replace action with xAction
-                                                    am.put(key, xAction);
-                                                    continue e;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            am = am.getParent();
-
-            //replace the keymap default action
-            Keymap km = jtc.getKeymap();
-            if (km != null) {
-                Action keymapDefaultAction = km.getDefaultAction();
-                if (keymapDefaultAction != null) {
-                    //find defaultAction with the same Class
-                    e: for (Action defaultAction: defaultActions) {
-                        if (defaultAction != null) {
-                            if (keymapDefaultAction.getClass() == defaultAction.getClass()) {
-                                Object keymapDefaultActionName = keymapDefaultAction.getValue(Action.NAME);
-                                if (keymapDefaultActionName != null) {
-                                    //find xAction with same name
-                                    for (Action xAction: xActions) {
-                                        if (xAction != null) {
-                                            Object xActionName = xAction.getValue(Action.NAME);
-                                            if (keymapDefaultActionName.equals(xActionName)) {
-                                                //now replace action with xAction
-                                                km.setDefaultAction(xAction);
-                                                break e;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Undo manager that handles grouping undo and redo edits.
-     *
-     * @author sahlaysta
-     */
-    public static class CompoundUndoManager extends UndoManager {
-
-        //save the edits that are normally typed (and not, for example, pasted)
-        private final Set<UndoableEdit> normalEdits = Collections.newSetFromMap(new WeakHashMap<>());
-
-        //save a token for each edit. when edits have the same token (==), they are compounded
-        //(this happens when you replace a text selection. it will cause two edits,
-        // a remove edit and an add edit.)
-        private final WeakHashMap<UndoableEdit, Object> editTokens = new WeakHashMap<>();
-
-        //for doCompounded() to give edits the same token
-        private Object fnToken;
-
-        //super.trimForLimit() would recursively call, making this necessary
-        private boolean trimForLimitRecursive;
-
-        /**
-         * Initializes a new instance of the {@link JTextComponentEnhancer.CompoundUndoManager} class.
-         */
-        public CompoundUndoManager() { }
-        
-        @Override
-        public synchronized boolean addEdit(UndoableEdit anEdit) {
-            registerEdit(anEdit);
-            return super.addEdit(anEdit);
-        }
-
-        @Override
-        public synchronized void undo() throws CannotUndoException {
-            if (!isInProgress()) {
-                super.undo();
-                return;
-            }
-            while (canUndo()) {
-                UndoableEdit ue = editToBeUndone();
-                undoTo(ue);
-                UndoableEdit prevue = editToBeUndone();
-                if (!areCompoundEdits(ue, prevue)) return;
-            }
-            throw new CannotUndoException();
-        }
-
-        @Override
-        public synchronized void redo() throws CannotRedoException {
-            if (!isInProgress()) {
-                super.redo();
-                return;
-            }
-            while (canRedo()) {
-                UndoableEdit ue = editToBeRedone();
-                redoTo(ue);
-                UndoableEdit nextue = editToBeRedone();
-                if (!areCompoundEdits(nextue, ue)) return;
-            }
-            throw new CannotRedoException();
-        }
-
-        @Override
-        protected void trimForLimit() {
-            if (trimForLimitRecursive) return;
-
-            int originalLimit = getLimit();
-            int limit = getLimit();
-            UndoableEdit prevEdit = null;
-            for (UndoableEdit ue: edits) {
-                if (areCompoundEdits(ue, prevEdit))
-                    limit++;
-                prevEdit = ue;
-            }
-
-            trimForLimitRecursive = true;
-            setLimit(limit);
-            super.trimForLimit();
-            setLimit(originalLimit);
-            trimForLimitRecursive = false;
-        }
-
-        /**
-         * Invokes the function, registering any modifications to be compounded.
-         *
-         * @param runnable the function
-         */
-        public void doCompounded(Runnable runnable) {
-            fnToken = new Object();
-            try {
-                runnable.run();
-            } finally {
-                fnToken = null;
-            }
-        }
-
-        //save the information of an edit
-        //try to detect if it has been typed normally (and not, for example, pasted)
-        //save the KeyEvent of each edit
-        private void registerEdit(UndoableEdit ue) {
-            if (fnToken != null) {//doCompounded()
-                editTokens.put(ue, fnToken);
-                return;
-            }
-
-            if (!(ue instanceof AbstractDocument.DefaultDocumentEvent)) return;
-            AbstractDocument.DefaultDocumentEvent dde = (AbstractDocument.DefaultDocumentEvent)ue;
-
-            AWTEvent event = EventQueue.getCurrentEvent();
-            if (!(event instanceof KeyEvent)) return;
-            KeyEvent keyEvent = (KeyEvent)event;
-
-            Object keyEventSource = keyEvent.getSource();
-            if (!(keyEventSource instanceof JTextComponent)) return;
-            JTextComponent jtc = (JTextComponent)keyEventSource;
-
-            if (jtc.getDocument() == dde.getDocument()) {
-                ActionListener al = computeKeyAction(keyEvent);
-                if (al instanceof Action) {
-                    Action action = (Action)al;
-                    Object actionName = action.getValue(Action.NAME);
-                    if (DefaultEditorKit.defaultKeyTypedAction.equals(actionName)
-                            || DefaultEditorKit.deletePrevCharAction.equals(actionName)) {
-                        normalEdits.add(ue);
-                    }
-                    editTokens.put(ue, keyEvent);//use the KeyEvent as token
-                }
-            }
-        }
-
-        //test an edit and its preceding edit for compounding
-        private boolean areCompoundEdits(UndoableEdit edit, UndoableEdit precedingEdit) {
-            //probably unnecessary but also serves as null check
-            if (!(edit instanceof AbstractDocument.DefaultDocumentEvent)
-                    || !(precedingEdit instanceof AbstractDocument.DefaultDocumentEvent)) {
-                return false;
-            }
-
-            //edits that have the same token are compounded
-            //(this happens when you replace a text selection. it will cause two edits,
-            // a remove edit and an add edit.)
-            if (editTokens.containsKey(edit) && editTokens.get(edit) == editTokens.get(precedingEdit)) return true;
-
-            //for edits to be compounded, they must be normal edits
-            if (!normalEdits.contains(edit) || !normalEdits.contains(precedingEdit)) return false;
-
-            //compare the edits for type and offset
-            AbstractDocument.DefaultDocumentEvent dde = (AbstractDocument.DefaultDocumentEvent)edit;
-            AbstractDocument.DefaultDocumentEvent prevdde = (AbstractDocument.DefaultDocumentEvent)precedingEdit;
-            DocumentEvent.EventType type = dde.getType();
-            if (type != prevdde.getType()) return false;
-            if (type == DocumentEvent.EventType.INSERT) {
-                return prevdde.getOffset() + prevdde.getLength() == dde.getOffset();
-            } else if (type == DocumentEvent.EventType.REMOVE) {
-                return dde.getOffset() + dde.getLength() == prevdde.getOffset();
-            }
-            return false;
-        }
-
-    }
-
-    //try to get the Action that would be invoked of a KeyEvent
-    //(the effectiveness of this solution is unknown)
-    private static ActionListener computeKeyAction(KeyEvent keyEvent) {
-        Object src = keyEvent.getSource();
-        if (!(src instanceof JComponent)) return null;
-        JComponent jc = (JComponent)src;
-        KeyStroke ks = KeyStroke.getKeyStrokeForEvent(keyEvent);
-        ActionListener al;
-
-        al = computeKeyBinding(jc, ks, JComponent.WHEN_FOCUSED);
-        if (al != null) return al;
-
-        al = computeKeyBinding(jc, ks, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
-        if (al != null) return al;
-
-        Container current = jc.getParent();
-        while (current != null) {
-            if (current instanceof JComponent) {
-                al = computeKeyBinding((JComponent)current, ks, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
-                if (al != null) return al;
-            }
-            if (current instanceof Window || current instanceof Applet) break;
-            current = current.getParent();
-        }
-
+    private static String getClipboardText() {
+        try {
+            Object o = Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
+            if (o instanceof String) return (String)o;
+        } catch (UnsupportedFlavorException | IOException ignore) { }
         return null;
     }
-    private static ActionListener computeKeyBinding(JComponent jc, KeyStroke ks, int cond) {
-        return !jc.isEnabled() ? null : new JComponent() {
-            {
-                setInputMap(cond, jc.getInputMap(cond));
-                setActionMap(jc.getActionMap());
-            }
-        }.getActionForKeyStroke(ks);
+
+    private static void setClipboardText(String text) {
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
     }
 
+    private static class JTCEPopupMenu extends JPopupMenu {
 
-    //the right-click popup menu with Cut, Copy, Paste, etc.
-    private static final class JTCEPopupMenu extends JPopupMenu {
+        private static class JTCEMenuItem extends JMenuItem {
+
+            ActionListener itemAction;
+            
+            {
+                addActionListener(e -> {
+                    if (itemAction != null)
+                        itemAction.actionPerformed(e);
+                });
+            }
+
+            void reinitWithBinding(String text, InputMap im, ActionMap am, Object binding) {
+                setText(text);
+                setAccelerator(getDisplayKeyStroke(getInputMapKeyStrokesForValue(im, binding)));
+                itemAction = am.get(binding);
+                setEnabled(itemAction != null);
+            }
+
+            void reinitWithAction(String text, Runnable action) {
+                setText(text);
+                setAccelerator(null);
+                itemAction = action == null ? null : e -> action.run();
+                setEnabled(itemAction != null);
+            }
+
+            //accelerator for display only, non-functional keystroke
+            @Override
+            public void setAccelerator(KeyStroke keyStroke) {
+                super.setAccelerator(keyStroke);
+                InputMap im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+                while (im != null) {
+                    im.clear();
+                    im = im.getParent();
+                }
+            }
+
+        }
 
         final JTextComponent jtc;
-        final CompoundUndoManager cum;
-        JTCEPopupMenu(JTextComponent jtc, CompoundUndoManager cum) {
+        final JTCEMenuItem cutItem = new JTCEMenuItem();
+        final JTCEMenuItem copyItem = new JTCEMenuItem();
+        final JTCEMenuItem pasteItem = new JTCEMenuItem();
+        final JTCEMenuItem pasteAsPlainTextItem = new JTCEMenuItem();
+        final JTCEMenuItem selectAllItem = new JTCEMenuItem();
+        final JTCEMenuItem undoItem = new JTCEMenuItem();
+        final JTCEMenuItem redoItem = new JTCEMenuItem();
+        final JTCEMenuItem activateLinkItem = new JTCEMenuItem();
+        final JTCEMenuItem copyLinkItem = new JTCEMenuItem();
+
+        JTCEPopupMenu(JTextComponent jtc) {
             this.jtc = jtc;
-            this.cum = cum;
         }
 
         @Override
         public void show(Component invoker, int x, int y) {
-            boolean keyboard = detectPopupTriggeredByKeyboard(invoker);
-            boolean hasSelection = jtc.getSelectionStart() != jtc.getSelectionEnd();
-            int index = keyboard ? jtc.getCaret().getDot() : jtc.viewToModel(new Point(x, y));
-
-            //if the popup is triggered by the keyboard shortcut, reconfigures the
-            //popup location to show at the text caret location
-            int popupX, popupY;
-            if (keyboard) {
-                Point p = jtc.getCaret().getMagicCaretPosition();
-                int fontHeight = jtc.getFontMetrics(jtc.getFont()).getHeight();
-                if (p == null) {
-                    try {
-                        Rectangle rect = jtc.modelToView(jtc.getSelectionEnd());
-                        popupX = rect.x;
-                        popupY = rect.y + fontHeight;
-                    } catch (BadLocationException e) { throw new Error(e); }
-                } else {
-                    popupX = p.x;
-                    popupY = p.y + fontHeight;
-                }
-            } else {
-                popupX = x;
-                popupY = y;
-            }
-
-            //obtain info of hyperlink
-            int hyperlinkIndex = index;
-            String hyperlink = getHyperlinkAtIndex(hyperlinkIndex);
-            if (hyperlink == null && keyboard && hasSelection)
-                hyperlink = getHyperlinkAtIndex(--hyperlinkIndex);
-
-            //unselect the text selection if the mouse is not clicked inside the selection
-            if (!keyboard && hyperlink == null
-                    && (!(jtc.getSelectionStart() <= index && jtc.getSelectionEnd() > index))) {
-                jtc.setSelectionStart(index);
-                jtc.setSelectionEnd(index);
-                hasSelection = false;
-            }
-
-            //popup menu items
-            JMenuItem
-                    cut = getJMenuItem("Cut", jtc::cut, DefaultEditorKit.cutAction),
-                    copy = getJMenuItem("Copy", jtc::copy, DefaultEditorKit.copyAction),
-                    paste = getJMenuItem("Paste", jtc::paste, DefaultEditorKit.pasteAction),
-                    pastePlain = getJMenuItem("Paste as plain text", () -> pasteAsPlainText(jtc), PASTE_PLAIN_KEY),
-                    selectAll = getJMenuItem("Select all", jtc::selectAll, DefaultEditorKit.selectAllAction),
-                    undo = getJMenuItem("Undo", cum::undo, UNDO_KEY),
-                    redo = getJMenuItem("Redo", cum::redo, REDO_KEY);
-
-            //gray out non-editable
-            boolean editable = jtc.isEditable();
-            cut.setEnabled(editable);
-            paste.setEnabled(editable);
-            pastePlain.setEnabled(editable);
-            undo.setEnabled(editable);
-            redo.setEnabled(editable);
-
-            //gray out non-undoable
-            if (!cum.canUndo()) undo.setEnabled(false);
-            if (!cum.canRedo()) redo.setEnabled(false);
-
-            //require a text selection for cut/copy
-            if (!hasSelection) {
-                cut.setEnabled(false);
-                copy.setEnabled(false);
-            }
-
-            //clear menu then add the items
             removeAll();
 
-            //hyperlink actions (activate/copy link)
-            if (hyperlink != null && jtc.isEnabled()) {
-                final int final_hyperlinkIndex = hyperlinkIndex;
-                final String final_hyperlink = hyperlink;
+            InputMap im = jtc.getInputMap();
+            ActionMap am = jtc.getActionMap();
+            boolean keyboardInvoked = checkKeyboardInvoked();
+            boolean jtcEnabled = jtc.isEnabled();
+            boolean jtcEditable = jtc.isEditable();
+            boolean jtcHasText = jtc.getDocument().getLength() > 0;
+            boolean jtcHasSelection = jtcHasText && jtc.getSelectionStart() != jtc.getSelectionEnd();
+            boolean jtcPlainText = isPlainTextContentType(jtc);
+            CompoundUndoManager jtcCum = getOrAddCompoundUndoManager(jtc, false);
+            int jtcIndex = keyboardInvoked ? jtc.getCaret().getDot() : jtc.viewToModel(new Point(x, y));
+            String jtcHyperlink = getHyperlinkAtIndex(jtc, jtcIndex);
 
-                //activate hyperlink
-                if (jtc instanceof JEditorPane) {
-                    JEditorPane jep = (JEditorPane)jtc;
-                    JMenuItem openHyperlink = new JMenuItem("Open link");
-                    openHyperlink.addActionListener(e -> activateHyperlink(jep, final_hyperlink, final_hyperlinkIndex));
-                    add(openHyperlink);
-                }
+            cutItem.reinitWithBinding("Cut", im, am, "cut-to-clipboard");
+            if (!jtcEnabled || !jtcEditable || !jtcHasSelection)
+                cutItem.setEnabled(false);
+            add(cutItem);
 
-                //copy hyperlink
-                JMenuItem copyHyperlink = new JMenuItem("Copy link");
-                copyHyperlink.addActionListener(e -> copyToClipboard(final_hyperlink));
-                add(copyHyperlink);
+            copyItem.reinitWithBinding("Copy", im, am, "copy-to-clipboard");
+            if (!jtcHasSelection)
+                copyItem.setEnabled(false);
+            add(copyItem);
+
+            pasteItem.reinitWithBinding("Paste", im, am, "paste-from-clipboard");
+            if (!jtcEnabled || !jtcEditable)
+                pasteItem.setEnabled(false);
+            add(pasteItem);
+
+            if (!jtcPlainText) {
+                pasteAsPlainTextItem.reinitWithBinding("Paste as plain text", im, am, pasteAsPlainText);
+                if (!jtcEnabled || !jtcEditable)
+                    pasteAsPlainTextItem.setEnabled(false);
+                add(pasteAsPlainTextItem);
             }
 
-            //add items
-            add(cut);
-            add(copy);
-            add(paste);
-            if (!isPlainTextContentType(jtc)) add(pastePlain);
-            add(selectAll);
-            add(undo);
-            add(redo);
+            selectAllItem.reinitWithBinding("Select all", im, am, "select-all");
+            if (!jtcEnabled || !jtcHasText)
+                selectAllItem.setEnabled(false);
+            add(selectAllItem);
 
-            //disable all for disabled component
-            if (!jtc.isEnabled()) {
-                Arrays.stream(getComponents())
-                        .filter(e -> e instanceof JMenuItem)
-                        .forEach(e -> e.setEnabled(false));
+            if (jtcCum != null) {
+                undoItem.reinitWithBinding("Undo", im, am, undo);
+                if (!jtcEnabled || !jtcEditable || !jtcCum.canUndo())
+                    undoItem.setEnabled(false);
+                add(undoItem);
+
+                redoItem.reinitWithBinding("Redo", im, am, redo);
+                if (!jtcEnabled || !jtcEditable || !jtcCum.canRedo())
+                    redoItem.setEnabled(false);
+                add(redoItem);
             }
 
-            super.show(invoker, popupX, popupY);
-        }
+            if (jtcHyperlink != null) {
+                addSeparator();
 
-        //create a JMenuItem with a display shortcut
-        private JMenuItem getJMenuItem(String text, Runnable r, Object shortcutValue) {
-            JMenuItem jmi = new JMenuItem(text);
-            jmi.addActionListener(e -> cum.doCompounded(r));
+                activateLinkItem.reinitWithAction("Activate link", () -> fireHyperlink(jtc, jtcHyperlink, jtcIndex));
+                if (!jtcEnabled)
+                    activateLinkItem.setEnabled(false);
+                add(activateLinkItem);
 
-            //find the shortcut's KeyStroke with its shortcut value
-            if (shortcutValue != null) {
-                InputMap im = jtc.getInputMap();
-                KeyStroke[] keys = im.allKeys();
-                if (keys != null && keys.length > 0) {
-                    KeyStroke ks = Arrays.stream(keys)
-                            .filter(e -> shortcutValue.equals(im.get(e)))
-                            .max(Comparator.comparing(JTCEPopupMenu::isAlphaNumeric))
-                            .orElse(null);
-                    if (ks != null) {
-                        //set a silent KeyStroke that only serves as display
-                        jmi.setAccelerator(ks);
-                        InputMap jmiim = jmi.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-                        while (jmiim != null) {
-                            jmiim.clear();
-                            jmiim = jmiim.getParent();
-                        }
-                    }
-                }
+                copyLinkItem.reinitWithAction("Copy link", () -> setClipboardText(jtcHyperlink));
+                if (!jtcEnabled)
+                    copyLinkItem.setEnabled(false);
+                add(copyLinkItem);
             }
 
-            return jmi;
+            if (!keyboardInvoked) {
+                super.show(invoker, x, y);
+            } else {
+                Point p = getKeyboardInvokedShowLocation();
+                super.show(invoker, p.x, p.y);
+            }
         }
 
-        //favor alphanumeric KeyStrokes when deciding what shortcut to display
-        private static boolean isAlphaNumeric(KeyStroke ks) {
-            int keyCode = ks.getKeyCode();
-            return (keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9)
-                    || (keyCode >= KeyEvent.VK_A && keyCode <= KeyEvent.VK_Z);
+        private boolean checkKeyboardInvoked() {
+            AWTEvent awtEvent = EventQueue.getCurrentEvent();
+            if (awtEvent == null) return false;
+            if (!(awtEvent instanceof KeyEvent)) return false;
+            KeyEvent keyEvent = (KeyEvent)awtEvent;
+            if (keyEvent.getSource() != jtc) return false;
+            KeyEventInfo kei = KeyEventInfo.getCurrentKeyEventInfo();
+            return kei != null && kei.nameEquals("postPopup");
         }
 
-        //detect if keyboard shortcut triggered this popup (for example, Shift+F10 on Windows)
-        private boolean detectPopupTriggeredByKeyboard(Component invoker) {
-            AWTEvent event = EventQueue.getCurrentEvent();
-            if (!(event instanceof KeyEvent)) return false;
-            KeyEvent keyEvent = (KeyEvent)event;
-            if (keyEvent.getSource() != invoker) return false;
-            ActionListener al = computeKeyAction(keyEvent);
-            return al instanceof Action && "postPopup".equals(((Action)al).getValue(Action.NAME));
-        }
-
-        //iterate the HTML document to find the hyperlink that matches the index
-        private String getHyperlinkAtIndex(int index) {
+        private static String getHyperlinkAtIndex(JTextComponent jtc, int index) {
             Document d = jtc.getDocument();
             if (!(d instanceof HTMLDocument)) return null;
             HTMLDocument hd = (HTMLDocument)jtc.getDocument();
             HTMLDocument.Iterator docit = hd.getIterator(HTML.Tag.A);
+            if (docit == null) return null;
             while (docit.isValid()) {
                 if (docit.getStartOffset() <= index && docit.getEndOffset() > index) {
                     AttributeSet as = docit.getAttributes();
-                    Enumeration<?> en = as.getAttributeNames();
-                    while (en.hasMoreElements())
-                        if (en.nextElement() == HTML.Attribute.HREF)
-                            return as.getAttribute(HTML.Attribute.HREF).toString();
+                    if (as != null) {
+                        Enumeration<?> en = as.getAttributeNames();
+                        if (en != null) {
+                            while (en.hasMoreElements()) {
+                                if (HTML.Attribute.HREF.equals(en.nextElement())) {
+                                    Object attr = as.getAttribute(HTML.Attribute.HREF);
+                                    if (attr instanceof String) {
+                                        return (String)attr;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 docit.next();
             }
             return null;
         }
 
-        //invoke hyperlink event
-        private static void activateHyperlink(JEditorPane jep, String hyperlink, int hyperlinkIndex) {
-            HTMLDocument doc = (HTMLDocument) jep.getDocument();
-            Element elem = doc.getCharacterElement(hyperlinkIndex);
-            URL url;
-            try {
-                url = new URL(doc.getBase(), hyperlink);
-            } catch (MalformedURLException ignore) {
-                url = null;
-            }
-            HyperlinkEvent he = new HyperlinkEvent(jep, HyperlinkEvent.EventType.ACTIVATED, url, hyperlink, elem);
-            jep.fireHyperlinkUpdate(he);
+        /*
+        sorting the keystrokes is a good way to get the proper display keystroke.
+        for example, for the paste action, instead of the "Ctrl V" key, it would be the "VK_PASTE" key,
+        which is an uncommon key that not many keyboards have.
+         */
+        private static KeyStroke getDisplayKeyStroke(KeyStroke[] keyStrokes) {
+            if (keyStrokes == null || keyStrokes.length == 0) return null;
+            KeyStroke[] sortedKeyStrokes = keyStrokes.clone();
+            Arrays.sort(sortedKeyStrokes, Comparator.comparing(AWTKeyStroke::getModifiers).reversed());
+            Arrays.sort(sortedKeyStrokes, Comparator.comparing(ks -> ks.getKeyCode() < '0' || ks.getKeyCode() > 'Z'));
+            return sortedKeyStrokes[0];
         }
 
-        //copy text to clipboard
-        private static void copyToClipboard(String text) {
-            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+        private static KeyStroke[] getInputMapKeyStrokesForValue(InputMap im, Object value) {
+            if (im == null) return null;
+            ArrayList<KeyStroke> keyStrokes = new ArrayList<>();
+            KeyStroke[] imKeys = im.allKeys();
+            if (imKeys == null) return null;
+            for (KeyStroke imKey: imKeys)
+                if (value.equals(im.get(imKey)))
+                    keyStrokes.add(imKey);
+            return keyStrokes.size() == 0 ? null : keyStrokes.toArray(new KeyStroke[0]);
+        }
+
+        private Point getKeyboardInvokedShowLocation() {
+            Point p = getCaretPosition(jtc);
+            FontMetrics fm = jtc.getFontMetrics(jtc.getFont());
+            int fontHeight = fm.getHeight();
+            int fontMaxDescent = fm.getMaxDescent();
+            return new Point(p.x, p.y + fontHeight + fontMaxDescent);
+        }
+
+        private static Point getCaretPosition(JTextComponent jtc) {
+            Point p = jtc.getCaret().getMagicCaretPosition();
+            if (p != null) {
+                return new Point(p.x, p.y);
+            } else {
+                try {
+                    Rectangle rect = jtc.modelToView(jtc.getSelectionEnd());
+                    return new Point(rect.x, rect.y);
+                } catch (BadLocationException e) { throw new Error(e); }
+            }
+        }
+
+        private static void fireHyperlink(JTextComponent jtc, String href, int offset) {
+            if (!(jtc instanceof JEditorPane)) return;
+            JEditorPane jep = (JEditorPane)jtc;
+            Document d = jep.getDocument();
+            if (!(d instanceof StyledDocument)) return;
+            StyledDocument sd = (StyledDocument)jep.getDocument();
+            Object page = sd.getProperty(Document.StreamDescriptionProperty);
+            URL url = null;
+            try {
+                url = page instanceof URL ? new URL((URL)page, href) : null;
+            } catch (MalformedURLException ignore) { }
+            HyperlinkEvent event = new HyperlinkEvent(
+                    jep, HyperlinkEvent.EventType.ACTIVATED, url, href, sd.getCharacterElement(offset));
+            jep.fireHyperlinkUpdate(event);
         }
 
     }
