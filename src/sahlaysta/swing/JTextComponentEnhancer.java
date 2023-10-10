@@ -302,6 +302,8 @@ public class JTextComponentEnhancer {
                 Collections.newSetFromMap(new WeakIdentityHashMap<>());
         private static final Set<UndoableEdit> deletePreviousEdits =
                 Collections.newSetFromMap(new WeakIdentityHashMap<>());
+        private static final Set<UndoableEdit> compoundEdits =
+                Collections.newSetFromMap(new WeakIdentityHashMap<>());
 
         /** This method is most likely useless now. */
         public synchronized void doCompounded(Runnable runnable) {
@@ -312,6 +314,10 @@ public class JTextComponentEnhancer {
             } finally {
                 this.doCompoundedToken = previousToken;
             }
+        }
+
+        public boolean isCompoundEdit(UndoableEdit anEdit) {
+            return compoundEdits.contains(anEdit);
         }
 
         @Override
@@ -328,6 +334,7 @@ public class JTextComponentEnhancer {
                 UndoableEdit cumLastEdit = cumEdit.edits.peekLast();
                 if (cumEdit.canAddCompoundEdits() && areCompoundEdits(cumLastEdit, anEdit)) {
                     cumEdit.addCompoundEdit(anEdit);
+                    compoundEdits.add(anEdit);
                     return true;
                 }
             }
