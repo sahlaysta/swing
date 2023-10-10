@@ -24,11 +24,11 @@ class KeyEventInfo {
     private final ActionListener action;
 
     private KeyEventInfo(
-            KeyEvent keyEvent, JComponent component, KeyStroke keyStroke, Object actionKey, ActionListener action) {
+            KeyEvent keyEvent, JComponent component, KeyStroke keyStroke, Object actionBinding, ActionListener action) {
         this.keyEvent = keyEvent;
         this.component = component;
         this.keyStroke = keyStroke;
-        this.actionBinding = actionKey;
+        this.actionBinding = actionBinding;
         this.action = action;
     }
 

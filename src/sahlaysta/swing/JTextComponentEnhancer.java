@@ -498,9 +498,9 @@ public class JTextComponentEnhancer {
 
     private static class ReplacementAction {
         final Action defaultAction, xAction;
-        ReplacementAction(Action oldAction, Action newAction) {
-            this.defaultAction = oldAction;
-            this.xAction = newAction;
+        ReplacementAction(Action defaultAction, Action xAction) {
+            this.defaultAction = defaultAction;
+            this.xAction = xAction;
         }
     }
     private static final Map<String, ReplacementAction> replacementActionMap = createReplacementActionMap();
@@ -806,7 +806,7 @@ public class JTextComponentEnhancer {
             for (KeyStroke imKey: imKeys)
                 if (value.equals(im.get(imKey)))
                     keyStrokes.add(imKey);
-            return keyStrokes.size() == 0 ? null : keyStrokes.toArray(new KeyStroke[0]);
+            return keyStrokes.isEmpty() ? null : keyStrokes.toArray(new KeyStroke[0]);
         }
 
         private Point getKeyboardInvokedShowLocation() {
