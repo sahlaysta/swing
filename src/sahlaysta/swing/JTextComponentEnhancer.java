@@ -459,6 +459,18 @@ public class JTextComponentEnhancer {
                 .toArray(KeyStroke[]::new);
     }
 
+    public static KeyStroke[] getPlatformUndoKeyStrokes() {
+        return platformKeyStrokes.undo.clone();
+    }
+
+    public static KeyStroke[] getPlatformRedoKeyStrokes() {
+        return platformKeyStrokes.redo.clone();
+    }
+
+    public static KeyStroke[] getPlatformPasteAsPlainTextKeyStrokes() {
+        return platformKeyStrokes.pasteAsPlainText.clone();
+    }
+
     private static CompoundUndoManager getOrAddCompoundUndoManager(JTextComponent jtc, boolean addCompoundUndoManager) {
         Document doc = jtc.getDocument();
         if (!(doc instanceof AbstractDocument)) return null;
