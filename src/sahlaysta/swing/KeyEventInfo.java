@@ -1,5 +1,10 @@
 package sahlaysta.swing;
 
+import java.awt.DefaultKeyboardFocusManager;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyEventPostProcessor;
+import java.awt.KeyboardFocusManager;
+import java.util.LinkedList;
 import javax.swing.Action;
 import javax.swing.ActionMap;
 import javax.swing.InputMap;
@@ -7,9 +12,7 @@ import javax.swing.JComponent;
 import javax.swing.JInternalFrame;
 import javax.swing.KeyStroke;
 import java.applet.Applet;
-import java.awt.AWTEvent;
 import java.awt.Container;
-import java.awt.EventQueue;
 import java.awt.Window;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -47,12 +50,52 @@ class KeyEventInfo {
                 || (action instanceof Action && name.equals(((Action)action).getValue(Action.NAME)));
     }
 
-    public static KeyEventInfo getCurrentKeyEventInfo() {
-        AWTEvent event = EventQueue.getCurrentEvent();
-        return event instanceof KeyEvent ? getKeyEventInfo((KeyEvent)event) : null;
+    private static KeyboardFocusManager KFM = null;
+    private static final LinkedList<KeyEvent> currentKeyEvents = new LinkedList<>();
+    public static void monitor() {
+        monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager());
     }
 
-    public static KeyEventInfo getKeyEventInfo(KeyEvent keyEvent) {
+    private static final KeyEventDispatcher MONITOR_DISPATCHER = e -> {
+        if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager())
+            currentKeyEvents.add(e);
+        return false;
+    };
+
+    private static final KeyEventPostProcessor MONITOR_POST_PROCESSOR = e -> {
+        if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager())
+            currentKeyEvents.removeLast();
+        return false;
+    };
+
+    private static void monitor(KeyboardFocusManager kfm) {
+        if (KFM == kfm) return;
+        unmonitor(KFM);
+        KFM = kfm;
+        if (kfm instanceof DefaultKeyboardFocusManager) {
+            DefaultKeyboardFocusManager dkfm = (DefaultKeyboardFocusManager)kfm;
+            dkfm.addPropertyChangeListener("managingFocus", e ->
+                    monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager()));
+            dkfm.addKeyEventDispatcher(MONITOR_DISPATCHER);
+            dkfm.addKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
+        }
+    }
+
+    private static void unmonitor(KeyboardFocusManager kfm) {
+        if (kfm == KFM) KFM = null;
+        if (kfm instanceof DefaultKeyboardFocusManager) {
+            DefaultKeyboardFocusManager dkfm = (DefaultKeyboardFocusManager)kfm;
+            dkfm.removeKeyEventDispatcher(MONITOR_DISPATCHER);
+            dkfm.removeKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
+        }
+    }
+
+    public static KeyEventInfo getCurrentKeyEventInfo() {
+        KeyEvent keyEvent = currentKeyEvents.peekLast();
+        return keyEvent == null ? null : resolveKeyEventInfo(keyEvent);
+    }
+
+    public static KeyEventInfo resolveKeyEventInfo(KeyEvent keyEvent) {
         if (keyEvent == null) return null;
 
         Object src = keyEvent.getSource();
