@@ -4,6 +4,7 @@ import java.awt.DefaultKeyboardFocusManager;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyEventPostProcessor;
 import java.awt.KeyboardFocusManager;
+import java.awt.Toolkit;
 import java.util.LinkedList;
 import javax.swing.Action;
 import javax.swing.ActionMap;
@@ -16,6 +17,7 @@ import java.awt.Container;
 import java.awt.Window;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import sun.awt.PeerEvent;
 
 //simulate JComponent.processKeyEvent() code for resolving the key action
 class KeyEventInfo {
@@ -59,6 +61,7 @@ class KeyEventInfo {
     private static final KeyEventDispatcher MONITOR_DISPATCHER = e -> {
         if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager())
             currentKeyEvents.add(e);
+        clearKeyEventsLater();
         return false;
     };
 
@@ -88,6 +91,18 @@ class KeyEventInfo {
             dkfm.removeKeyEventDispatcher(MONITOR_DISPATCHER);
             dkfm.removeKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
         }
+    }
+
+    private static boolean willClearKeyEventsLater = false;
+    private static void clearKeyEventsLater() {
+        if (willClearKeyEventsLater) return;
+        Runnable r = () -> {
+            willClearKeyEventsLater = false;
+            currentKeyEvents.clear();
+        };
+        Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(
+                new PeerEvent(Toolkit.getDefaultToolkit(), r, PeerEvent.ULTIMATE_PRIORITY_EVENT));
+        willClearKeyEventsLater = true;
     }
 
     public static KeyEventInfo getCurrentKeyEventInfo() {
