@@ -43,7 +43,6 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ContainerEvent;
-import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -115,6 +114,8 @@ public class JTextComponentEnhancer {
             boolean setComponentPopupMenu) {
         Objects.requireNonNull(jtc);
         Objects.requireNonNull(beepFunction);
+
+        KeyEventInfo.monitor();
 
         getOrAddCompoundUndoManager(jtc, addCompoundUndoManager);
 
@@ -354,14 +355,12 @@ public class JTextComponentEnhancer {
             if (awtEvent == null) return;
             awtEvents.put(ue, awtEvent);
 
-            if (awtEvent instanceof KeyEvent && awtEvent.getSource() == jtc) {
-                KeyEventInfo kei = KeyEventInfo.getCurrentKeyEventInfo();
-                if (kei != null) {
-                    if (kei.nameEquals("default-typed"))
-                        defaultTypedEdits.add(ue);
-                    else if (kei.nameEquals("delete-previous"))
-                        deletePreviousEdits.add(ue);
-                }
+            KeyEventInfo kei = KeyEventInfo.getCurrentKeyEventInfo();
+            if (kei != null) {
+                if (kei.nameEquals("default-typed"))
+                    defaultTypedEdits.add(ue);
+                else if (kei.nameEquals("delete-previous"))
+                    deletePreviousEdits.add(ue);
             }
         }
 
@@ -526,12 +525,12 @@ public class JTextComponentEnhancer {
     private static Map<String, ReplacementAction> createReplacementActionMap() {
         Map<String, Action> defaultActionMap =
                 Arrays.stream(new DefaultEditorKit().getActions())
-                .collect(Collectors.toMap(a -> (String)a.getValue(Action.NAME), a -> a));
+                        .collect(Collectors.toMap(a -> (String)a.getValue(Action.NAME), a -> a));
         Map<String, Action> xActionMap =
                 Arrays.stream(new XDefaultEditorKit().getActions())
-                .collect(Collectors.toMap(a -> (String)a.getValue(Action.NAME), a -> a));
+                        .collect(Collectors.toMap(a -> (String)a.getValue(Action.NAME), a -> a));
         Set<String> actionNames = Stream.concat(
-                defaultActionMap.keySet().stream(), xActionMap.keySet().stream())
+                        defaultActionMap.keySet().stream(), xActionMap.keySet().stream())
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         HashMap<String, ReplacementAction> result = new HashMap<>();
@@ -639,7 +638,7 @@ public class JTextComponentEnhancer {
         private static class JTCEMenuItem extends JMenuItem {
 
             ActionListener itemAction;
-            
+
             {
                 addActionListener(e -> {
                     if (itemAction != null)
@@ -767,11 +766,6 @@ public class JTextComponentEnhancer {
         }
 
         private boolean checkKeyboardInvoked() {
-            AWTEvent awtEvent = EventQueue.getCurrentEvent();
-            if (awtEvent == null) return false;
-            if (!(awtEvent instanceof KeyEvent)) return false;
-            KeyEvent keyEvent = (KeyEvent)awtEvent;
-            if (keyEvent.getSource() != jtc) return false;
             KeyEventInfo kei = KeyEventInfo.getCurrentKeyEventInfo();
             return kei != null && kei.nameEquals("postPopup");
         }
