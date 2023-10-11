@@ -66,8 +66,11 @@ class KeyEventInfo {
     };
 
     private static final KeyEventPostProcessor MONITOR_POST_PROCESSOR = e -> {
-        if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager())
-            currentKeyEvents.removeLast();
+        if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager()) {
+            if (!currentKeyEvents.isEmpty()) {
+                currentKeyEvents.removeLast();
+            }
+        }
         return false;
     };
 
