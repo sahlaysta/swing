@@ -831,15 +831,10 @@ public class JTextComponentEnhancer {
         }
 
         private static Point getCaretPosition(JTextComponent jtc) {
-            Point p = jtc.getCaret().getMagicCaretPosition();
-            if (p != null) {
-                return new Point(p.x, p.y);
-            } else {
-                try {
-                    Rectangle rect = jtc.modelToView(jtc.getSelectionEnd());
-                    return new Point(rect.x, rect.y);
-                } catch (BadLocationException e) { throw new Error(e); }
-            }
+            try {
+                Rectangle rect = jtc.modelToView(jtc.getSelectionEnd());
+                return new Point(rect.x, rect.y);
+            } catch (BadLocationException e) { throw new Error(e); }
         }
 
         private static void fireHyperlink(JTextComponent jtc, String href, int offset) {
