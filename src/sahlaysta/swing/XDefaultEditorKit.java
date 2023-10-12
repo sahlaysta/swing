@@ -1,7 +1,5 @@
 package sahlaysta.swing;
 
-import sun.awt.SunToolkit;
-
 import javax.swing.Action;
 import javax.swing.SwingConstants;
 import javax.swing.text.AbstractDocument;
@@ -26,7 +24,6 @@ import javax.swing.text.ViewFactory;
 import java.awt.ComponentOrientation;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +44,7 @@ modifications:
 - replace all occurrences of "UIManager.getLookAndFeel().provideErrorFeedback()" to "beep()"
 - replace all occurrences of "actionPerformed()" to "doTextAction()"
 - modify NextVisualPositionAction to fully move the caret while text is selected
+- modify DefaultKeyTypedAction to delegate DefaultEditorKit.DefaultKeyTypedAction
  */
 class XDefaultEditorKit extends EditorKit {
 
@@ -850,41 +848,13 @@ class XDefaultEditorKit extends EditorKit {
      */
     @SuppressWarnings("serial") // Same-version serialization only
     public static class DefaultKeyTypedAction extends XTextAction {
-
-        /**
-         * Creates this object with the appropriate identifier.
-         */
+        private static final DefaultEditorKit.DefaultKeyTypedAction DKTA
+                = new DefaultEditorKit.DefaultKeyTypedAction();
         public DefaultKeyTypedAction() {
             super(defaultKeyTypedAction);
         }
-
-        /**
-         * The operation to perform when this action is triggered.
-         *
-         * @param e the action event
-         */
         public void doTextAction(ActionEvent e) {
-            JTextComponent target = getTextComponent(e);
-            if ((target != null) && (e != null)) {
-                if ((! target.isEditable()) || (! target.isEnabled())) {
-                    return;
-                }
-                String content = e.getActionCommand();
-                int mod = e.getModifiers();
-                if ((content != null) && (content.length() > 0)) {
-                    boolean isPrintableMask = true;
-                    Toolkit tk = Toolkit.getDefaultToolkit();
-                    if (tk instanceof SunToolkit) {
-                        isPrintableMask = ((SunToolkit)tk).isPrintableCharacterModifiersMask(mod);
-                    }
-
-                    char c = content.charAt(0);
-                    if ((isPrintableMask && (c >= 0x20) && (c != 0x7F)) ||
-                            (!isPrintableMask && (c >= 0x200C) && (c <= 0x200D))) {
-                        target.replaceSelection(content);
-                    }
-                }
-            }
+            DKTA.actionPerformed(e);
         }
     }
 
