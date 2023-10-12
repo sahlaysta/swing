@@ -4,6 +4,7 @@ import java.awt.KeyEventDispatcher;
 import java.awt.KeyEventPostProcessor;
 import java.awt.KeyboardFocusManager;
 import java.awt.Toolkit;
+import java.beans.PropertyChangeListener;
 import java.util.LinkedList;
 import javax.swing.Action;
 import javax.swing.ActionMap;
@@ -73,20 +74,23 @@ class KeyEventInfo {
         return false;
     };
 
+    private static final PropertyChangeListener MONITOR_PROPERTY_LISTENER = e ->
+            monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager());
+
     private static void monitor(KeyboardFocusManager kfm) {
         if (KFM == kfm) return;
-        unmonitor(KFM);
+        if (KFM != null) unmonitor(KFM);
         KFM = kfm;
-        kfm.addPropertyChangeListener("managingFocus", e ->
-                monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager()));
         kfm.addKeyEventDispatcher(MONITOR_DISPATCHER);
         kfm.addKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
+        kfm.addPropertyChangeListener("managingFocus", MONITOR_PROPERTY_LISTENER);
     }
 
     private static void unmonitor(KeyboardFocusManager kfm) {
         if (kfm == KFM) KFM = null;
         kfm.removeKeyEventDispatcher(MONITOR_DISPATCHER);
         kfm.removeKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
+        kfm.removePropertyChangeListener("managingFocus", MONITOR_PROPERTY_LISTENER);
     }
 
     private static boolean willClearKeyEventsLater = false;
