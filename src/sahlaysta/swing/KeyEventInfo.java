@@ -1,6 +1,5 @@
 package sahlaysta.swing;
 
-import java.awt.DefaultKeyboardFocusManager;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyEventPostProcessor;
 import java.awt.KeyboardFocusManager;
@@ -78,22 +77,16 @@ class KeyEventInfo {
         if (KFM == kfm) return;
         unmonitor(KFM);
         KFM = kfm;
-        if (kfm instanceof DefaultKeyboardFocusManager) {
-            DefaultKeyboardFocusManager dkfm = (DefaultKeyboardFocusManager)kfm;
-            dkfm.addPropertyChangeListener("managingFocus", e ->
-                    monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager()));
-            dkfm.addKeyEventDispatcher(MONITOR_DISPATCHER);
-            dkfm.addKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
-        }
+        kfm.addPropertyChangeListener("managingFocus", e ->
+                monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager()));
+        kfm.addKeyEventDispatcher(MONITOR_DISPATCHER);
+        kfm.addKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
     }
 
     private static void unmonitor(KeyboardFocusManager kfm) {
         if (kfm == KFM) KFM = null;
-        if (kfm instanceof DefaultKeyboardFocusManager) {
-            DefaultKeyboardFocusManager dkfm = (DefaultKeyboardFocusManager)kfm;
-            dkfm.removeKeyEventDispatcher(MONITOR_DISPATCHER);
-            dkfm.removeKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
-        }
+        kfm.removeKeyEventDispatcher(MONITOR_DISPATCHER);
+        kfm.removeKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
     }
 
     private static boolean willClearKeyEventsLater = false;
