@@ -3,9 +3,7 @@ package sahlaysta.swing;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyEventPostProcessor;
 import java.awt.KeyboardFocusManager;
-import java.awt.Toolkit;
 import java.beans.PropertyChangeListener;
-import java.util.LinkedList;
 import javax.swing.Action;
 import javax.swing.ActionMap;
 import javax.swing.InputMap;
@@ -17,7 +15,6 @@ import java.awt.Container;
 import java.awt.Window;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
-import sun.awt.PeerEvent;
 
 //simulate JComponent.processKeyEvent() code for resolving the key action
 class KeyEventInfo {
@@ -53,24 +50,18 @@ class KeyEventInfo {
     }
 
     private static KeyboardFocusManager KFM = null;
-    private static final LinkedList<KeyEvent> currentKeyEvents = new LinkedList<>();
+    private static KeyEvent currentKeyEvent;
     public static void monitor() {
         monitor(KeyboardFocusManager.getCurrentKeyboardFocusManager());
     }
 
     private static final KeyEventDispatcher MONITOR_DISPATCHER = e -> {
-        if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager())
-            currentKeyEvents.add(e);
-        clearKeyEventsLater();
+        currentKeyEvent = e;
         return false;
     };
 
     private static final KeyEventPostProcessor MONITOR_POST_PROCESSOR = e -> {
-        if (KFM == KeyboardFocusManager.getCurrentKeyboardFocusManager()) {
-            if (!currentKeyEvents.isEmpty()) {
-                currentKeyEvents.removeLast();
-            }
-        }
+        currentKeyEvent = null;
         return false;
     };
 
@@ -87,27 +78,14 @@ class KeyEventInfo {
     }
 
     private static void unmonitor(KeyboardFocusManager kfm) {
-        if (kfm == KFM) KFM = null;
+        if (KFM == kfm) KFM = null;
         kfm.removeKeyEventDispatcher(MONITOR_DISPATCHER);
         kfm.removeKeyEventPostProcessor(MONITOR_POST_PROCESSOR);
         kfm.removePropertyChangeListener("managingFocus", MONITOR_PROPERTY_LISTENER);
     }
 
-    private static boolean willClearKeyEventsLater = false;
-    private static void clearKeyEventsLater() {
-        if (willClearKeyEventsLater) return;
-        Runnable r = () -> {
-            willClearKeyEventsLater = false;
-            currentKeyEvents.clear();
-        };
-        Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(
-                new PeerEvent(Toolkit.getDefaultToolkit(), r, PeerEvent.ULTIMATE_PRIORITY_EVENT));
-        willClearKeyEventsLater = true;
-    }
-
     public static KeyEventInfo getCurrentKeyEventInfo() {
-        KeyEvent keyEvent = currentKeyEvents.peekLast();
-        return keyEvent == null ? null : resolveKeyEventInfo(keyEvent);
+        return currentKeyEvent == null ? null : resolveKeyEventInfo(currentKeyEvent);
     }
 
     public static KeyEventInfo resolveKeyEventInfo(KeyEvent keyEvent) {
