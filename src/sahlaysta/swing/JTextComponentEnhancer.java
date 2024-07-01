@@ -286,6 +286,7 @@ public class JTextComponentEnhancer {
 
         public CompoundUndoManager(JTextComponent jtc) {
             this.jtc = jtc;
+            KeyEventInfo.monitor();
         }
 
         @Deprecated
